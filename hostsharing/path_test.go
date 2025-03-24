@@ -221,3 +221,22 @@ func TestIsFCGI(t *testing.T) {
 		}
 	}
 }
+
+func TestFcgiAppName(t *testing.T) {
+	for _, tc := range []struct {
+		path     string
+		expected string
+	}{
+		{"/", ""},
+		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/api.fcgi", "api"},
+		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/api", "api"},
+		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/hello-world", "hello-world"},
+		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/foobar.fcgi", "foobar"},
+		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi/foobar.fcgi", "foobar"},
+		{"/home/pacs/xyz00/users/example/doms/example.com/cgi/foobar.fcgi", ""},
+	} {
+		if got := fcgiAppName(func() (string, error) { return tc.path, nil }); got != tc.expected {
+			t.Errorf("Expected %v for %v but got %v", tc.expected, tc.path, got)
+		}
+	}
+}

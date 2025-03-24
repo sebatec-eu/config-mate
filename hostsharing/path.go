@@ -96,6 +96,18 @@ func isFCGI(fn func() (string, error)) bool {
 	return strings.HasPrefix(dir, "fastcgi")
 }
 
+func fcgiAppName(fn func() (string, error)) string {
+	r, err := fn()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Base(filepath.Dir(r))
+	if strings.HasPrefix(dir, "fastcgi") {
+		return strings.TrimSuffix(filepath.Base(r), ".fcgi")
+	}
+	return ""
+}
+
 func IsFCGI() bool {
 	return isFCGI(os.Executable)
 }

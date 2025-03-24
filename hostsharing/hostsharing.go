@@ -16,6 +16,8 @@ import (
 
 const defaultHttpPort = "9000"
 
+var ErrNoFcgiEnvironment = fmt.Errorf("no fcgi environment dedected")
+
 func ListenAndServe(handler http.Handler) error {
 	if IsFCGI() {
 		if err := fcgi.Serve(nil, handler); err != nil {
@@ -50,7 +52,18 @@ func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
-func ReadInConfig(rawVal any, app_name string) error {
+// It tries to dedect an FCGI environement on the Hostsharing plattform. Usually
+// a binary is located under /home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/hello.fcgi
+// In this case, the app name is "hello". It is used to search for the config file.
+func FcgiReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
+	if !IsFCGI() {
+		return ErrNoFcgiEnvironment
+	}
+	appName := fcgiAppName(os.Executable)
+	return ReadInConfig(rawVal, appName, fs)
+}
+
+func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc) error {
 	viper.SetConfigType("yaml")
 	cfg, err := os.ReadFile(fmt.Sprintf(".%s.conf", app_name))
 	if err != nil {
@@ -70,11 +83,15 @@ func ReadInConfig(rawVal any, app_name string) error {
 		viper.ReadConfig(bytes.NewBuffer(cfg))
 	}
 
-	if err := viper.Unmarshal(&rawVal, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
-		base64StringToBytesHookFunc(),
-		mapstructure.StringToTimeDurationHookFunc(),
-		mapstructure.StringToSliceHookFunc(","),
-	))); err != nil {
+	if len(fs) <= 0 {
+		fs = append(fs,
+			base64StringToBytesHookFunc(),
+			mapstructure.StringToTimeDurationHookFunc(),
+			mapstructure.StringToSliceHookFunc(","),
+		)
+	}
+
+	if err := viper.Unmarshal(&rawVal, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(fs))); err != nil {
 		return fmt.Errorf("cannot unmarshal config: %v", err)
 	}
 
