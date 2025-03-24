@@ -26,18 +26,7 @@ func fcgiLogFile(fn func() (string, error)) (string, error) {
 	return fmt.Sprintf("%s/%s.log", domain.LogDir(), b), nil
 }
 
-func FcgiRequestLogger() func(next http.Handler) http.Handler {
-	if !IsFCGI() {
-		panic(ErrNoFcgiEnvironment)
-	}
-	appName, err := appName(os.Executable)
-	if err != nil {
-		panic(fmt.Errorf("cannot detect environemnt: %e", err))
-	}
-	return RequestLogger(appName)
-}
-
-func RequestLogger(serviceName string) func(next http.Handler) http.Handler {
+func RequestLogger() func(next http.Handler) http.Handler {
 	opt := httplog.Options{
 		JSON:            true,
 		LogLevel:        slog.LevelInfo,
@@ -61,6 +50,11 @@ func RequestLogger(serviceName string) func(next http.Handler) http.Handler {
 			panic(err)
 		}
 		opt.Writer = f
+	}
+
+	serviceName, err := appName(os.Executable)
+	if err != nil {
+		panic(fmt.Errorf("cannot detect environemnt: %e", err))
 	}
 
 	return httplog.RequestLogger(httplog.NewLogger(serviceName, opt))
