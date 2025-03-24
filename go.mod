@@ -3,6 +3,7 @@ module github.com/sebatec-eu/config-mate
 go 1.24.1
 
 require (
+	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-chi/httplog/v2 v2.1.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/viper v1.20.0
@@ -10,7 +11,6 @@ require (
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
-	github.com/go-chi/chi/v5 v5.0.10 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
