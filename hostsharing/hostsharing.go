@@ -80,7 +80,7 @@ func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc
 		)
 	}
 
-	if err := viper.Unmarshal(&rawVal, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(fs))); err != nil {
+	if err := viper.Unmarshal(&rawVal, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(fs...))); err != nil {
 		return fmt.Errorf("cannot unmarshal config: %v", err)
 	}
 
