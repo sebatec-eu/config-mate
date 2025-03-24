@@ -52,20 +52,6 @@ func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
-// It tries to dedect an FCGI environement on the Hostsharing plattform. Usually
-// a binary is located under /home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/hello.fcgi
-// In this case, the app name is "hello". It is used to search for the config file.
-func FcgiReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
-	if !IsFCGI() {
-		return ErrNoFcgiEnvironment
-	}
-	appName, err := appName(os.Executable)
-	if err != nil {
-		panic(fmt.Errorf("cannot detect environemnt: %e", err))
-	}
-	return ReadInConfig(rawVal, appName, fs)
-}
-
 func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc) error {
 	viper.SetConfigType("yaml")
 	cfg, err := os.ReadFile(fmt.Sprintf(".%s.conf", app_name))
