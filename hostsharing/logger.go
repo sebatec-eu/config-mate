@@ -26,6 +26,14 @@ func fcgiLogFile(fn func() (string, error)) (string, error) {
 	return fmt.Sprintf("%s/%s.log", domain.LogDir(), b), nil
 }
 
+func FcgiRequestLogger() func(next http.Handler) http.Handler {
+	if !IsFCGI() {
+		panic(ErrNoFcgiEnvironment)
+	}
+	appName := fcgiAppName(os.Executable)
+	return RequestLogger(appName)
+}
+
 func RequestLogger(serviceName string) func(next http.Handler) http.Handler {
 	opt := httplog.Options{
 		JSON:            true,
