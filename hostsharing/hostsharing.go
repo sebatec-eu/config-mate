@@ -59,7 +59,10 @@ func FcgiReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
 	if !IsFCGI() {
 		return ErrNoFcgiEnvironment
 	}
-	appName := fcgiAppName(os.Executable)
+	appName, err := appName(os.Executable)
+	if err != nil {
+		panic(fmt.Errorf("cannot detect environemnt: %e", err))
+	}
 	return ReadInConfig(rawVal, appName, fs)
 }
 

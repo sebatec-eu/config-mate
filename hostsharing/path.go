@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-var ErrShortPath = fmt.Errorf("cannot dedect anything")
+var (
+	ErrShortPath     = fmt.Errorf("cannot dedect anything")
+	ErrUnkownAppName = fmt.Errorf("app name unkown")
+)
 
 type user struct {
 	pac  string
@@ -96,16 +99,13 @@ func isFCGI(fn func() (string, error)) bool {
 	return strings.HasPrefix(dir, "fastcgi")
 }
 
-func fcgiAppName(fn func() (string, error)) string {
+func appName(fn func() (string, error)) (string, error) {
 	r, err := fn()
 	if err != nil {
-		return ""
+		return "", ErrUnkownAppName
 	}
-	dir := filepath.Base(filepath.Dir(r))
-	if strings.HasPrefix(dir, "fastcgi") {
-		return strings.TrimSuffix(filepath.Base(r), ".fcgi")
-	}
-	return ""
+
+	return strings.TrimSuffix(filepath.Base(r), ".fcgi"), nil
 }
 
 func IsFCGI() bool {

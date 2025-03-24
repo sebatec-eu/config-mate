@@ -30,7 +30,10 @@ func FcgiRequestLogger() func(next http.Handler) http.Handler {
 	if !IsFCGI() {
 		panic(ErrNoFcgiEnvironment)
 	}
-	appName := fcgiAppName(os.Executable)
+	appName, err := appName(os.Executable)
+	if err != nil {
+		panic(fmt.Errorf("cannot detect environemnt: %e", err))
+	}
 	return RequestLogger(appName)
 }
 

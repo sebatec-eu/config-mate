@@ -222,20 +222,23 @@ func TestIsFCGI(t *testing.T) {
 	}
 }
 
-func TestFcgiAppName(t *testing.T) {
+func TestAppName(t *testing.T) {
 	for _, tc := range []struct {
 		path     string
 		expected string
 	}{
-		{"/", ""},
 		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/api.fcgi", "api"},
 		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/api", "api"},
 		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/hello-world", "hello-world"},
 		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/foobar.fcgi", "foobar"},
 		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi/foobar.fcgi", "foobar"},
-		{"/home/pacs/xyz00/users/example/doms/example.com/cgi/foobar.fcgi", ""},
+		{"/home/pacs/xyz00/users/example/doms/example.com/cgi/foobar.fcgi", "foobar"},
 	} {
-		if got := fcgiAppName(func() (string, error) { return tc.path, nil }); got != tc.expected {
+		got, err := appName(func() (string, error) { return tc.path, nil })
+		if err != nil {
+			t.Errorf("got error instead of name: %e", err)
+		}
+		if got != tc.expected {
 			t.Errorf("Expected %v for %v but got %v", tc.expected, tc.path, got)
 		}
 	}
