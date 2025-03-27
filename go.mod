@@ -6,7 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/httplog/v2 v2.1.1
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/spf13/viper v1.20.0
+	github.com/spf13/viper v1.20.1
 )
 
 require (
