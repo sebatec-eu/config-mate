@@ -43,7 +43,7 @@ func ServeStaticOrTemplate(staticRoot http.FileSystem, tmplRoot fs.FS) http.Hand
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		urlFormat, _ := r.Context().Value(middleware.URLFormatCtxKey).(string)
 		switch urlFormat {
-		case "css", "js", "woff2", "ico", "wasm", "svg":
+		case "css", "js", "woff2", "ico", "wasm", "svg", "json":
 			stHandler.ServeHTTP(w, r)
 		case "":
 			tmplHandlerFunc(w, r)
