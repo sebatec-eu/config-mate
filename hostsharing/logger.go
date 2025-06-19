@@ -2,14 +2,14 @@ package hostsharing
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/go-chi/httplog/v2"
+	"github.com/go-chi/httplog/v3"
 )
 
 func fcgiLogFile(fn func() (string, error)) (string, error) {
@@ -26,20 +26,7 @@ func fcgiLogFile(fn func() (string, error)) (string, error) {
 	return fmt.Sprintf("%s/%s.log", domain.LogDir(), b), nil
 }
 
-func RequestLogger() func(next http.Handler) http.Handler {
-	opt := httplog.Options{
-		JSON:            true,
-		LogLevel:        slog.LevelInfo,
-		Concise:         true,
-		RequestHeaders:  true,
-		ResponseHeaders: true,
-		TimeFieldFormat: time.RFC3339,
-		Tags: map[string]string{
-			"version": "latest",
-		},
-		QuietDownRoutes: []string{},
-		QuietDownPeriod: time.Minute,
-	}
+func logWriter() io.Writer {
 	if IsFCGI() {
 		logFile, err := fcgiLogFile(os.Executable)
 		if err != nil {
@@ -49,13 +36,26 @@ func RequestLogger() func(next http.Handler) http.Handler {
 		if err != nil {
 			panic(err)
 		}
-		opt.Writer = f
+		return f
 	}
+	return os.Stdout
+}
 
+func RequestLogger() func(next http.Handler) http.Handler {
 	serviceName, err := appName(os.Executable)
 	if err != nil {
 		panic(fmt.Errorf("cannot detect environemnt: %e", err))
 	}
 
-	return httplog.RequestLogger(httplog.NewLogger(serviceName, opt))
+	logger := slog.New(slog.NewJSONHandler(logWriter(), &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})).With(
+		slog.String("service", serviceName),
+		slog.String("version", "latest"),
+	)
+
+	return httplog.RequestLogger(logger, &httplog.Options{
+		Level:         slog.LevelInfo,
+		RecoverPanics: true,
+	})
 }
