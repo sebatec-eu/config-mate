@@ -1,6 +1,7 @@
 package hostsharing
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httplog/v3"
 )
 
@@ -54,8 +56,28 @@ func RequestLogger() func(next http.Handler) http.Handler {
 		slog.String("version", "latest"),
 	)
 
+	slog.SetDefault(logger)
+
 	return httplog.RequestLogger(logger, &httplog.Options{
 		Level:         slog.LevelInfo,
 		RecoverPanics: true,
+		Schema:        httplog.SchemaGCP,
+		LogExtraAttrs: func(r *http.Request, reqBody string, respStatus int) []slog.Attr {
+			attrs := []slog.Attr{}
+			rID := middleware.GetReqID(r.Context())
+			if rID != "" {
+				attrs = append(attrs, slog.String("requestID", rID))
+			}
+			return attrs
+		},
 	})
+}
+
+func LogInfo(ctx context.Context, format string, args ...any) {
+	rID := middleware.GetReqID(ctx)
+	if rID != "" {
+		slog.InfoContext(ctx, fmt.Sprintf(format, args...), "requestID", middleware.GetReqID(ctx))
+	} else {
+		slog.InfoContext(ctx, fmt.Sprintf(format, args...))
+	}
 }
