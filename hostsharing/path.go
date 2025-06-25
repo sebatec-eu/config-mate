@@ -52,6 +52,10 @@ func (d *domain) LogDir() string {
 	return fmt.Sprintf("%s/doms/%s/var", d.Home(), d.domain)
 }
 
+func (d *domain) DataDir() string {
+	return fmt.Sprintf("%s/doms/%s/data", d.Home(), d.domain)
+}
+
 func ParseDomain(p string) (*domain, error) {
 	if p == "" {
 		return nil, ErrShortPath
