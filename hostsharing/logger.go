@@ -62,6 +62,15 @@ func RequestLogger() func(next http.Handler) http.Handler {
 		Level:         slog.LevelInfo,
 		RecoverPanics: true,
 		Schema:        httplog.SchemaGCP,
+		Skip: func(r *http.Request, respStatus int) bool {
+			urlFormat, _ := r.Context().Value(middleware.URLFormatCtxKey).(string)
+			switch urlFormat {
+			case "css", "js", "woff2", "ico", "wasm", "svg", "json":
+				return true
+			default:
+				return false
+			}
+		},
 		LogExtraAttrs: func(r *http.Request, reqBody string, respStatus int) []slog.Attr {
 			attrs := []slog.Attr{}
 			rID := middleware.GetReqID(r.Context())
@@ -79,5 +88,23 @@ func LogInfo(ctx context.Context, format string, args ...any) {
 		slog.InfoContext(ctx, fmt.Sprintf(format, args...), "requestID", middleware.GetReqID(ctx))
 	} else {
 		slog.InfoContext(ctx, fmt.Sprintf(format, args...))
+	}
+}
+
+func LogWarn(ctx context.Context, format string, args ...any) {
+	rID := middleware.GetReqID(ctx)
+	if rID != "" {
+		slog.WarnContext(ctx, fmt.Sprintf(format, args...), "requestID", middleware.GetReqID(ctx))
+	} else {
+		slog.WarnContext(ctx, fmt.Sprintf(format, args...))
+	}
+}
+
+func LogError(ctx context.Context, format string, args ...any) {
+	rID := middleware.GetReqID(ctx)
+	if rID != "" {
+		slog.ErrorContext(ctx, fmt.Sprintf(format, args...), "requestID", middleware.GetReqID(ctx))
+	} else {
+		slog.ErrorContext(ctx, fmt.Sprintf(format, args...))
 	}
 }
