@@ -1,6 +1,6 @@
 {
   "name": "config-mate",
-  "image": "ghcr.io/sebatec-eu/go-devcontainer:1@sha256:bfa2ad9fef5c3ed904e79f9084821f7d5d0ce1ee9f0e1ec9e70e2f6f20bce4cf",
+  "image": "ghcr.io/sebatec-eu/go-devcontainer:1@sha256:0026c0dd66e078d661234eca83de3309beffe3074240ec3b7830b701d9d0a18b",
   "features": {},
   "customizations": {
     "vscode": {
