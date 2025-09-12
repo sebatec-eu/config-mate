@@ -44,7 +44,7 @@ func logWriter() io.Writer {
 }
 
 func RequestLogger() func(next http.Handler) http.Handler {
-	serviceName, err := appName(os.Executable)
+	serviceName, err := ServiceName()
 	if err != nil {
 		panic(fmt.Errorf("cannot detect environemnt: %e", err))
 	}
