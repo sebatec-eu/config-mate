@@ -21,12 +21,12 @@ var ErrNoFcgiEnvironment = fmt.Errorf("no fcgi environment dedected")
 func ListenAndServe(handler http.Handler) error {
 	if IsFCGI() {
 		if err := fcgi.Serve(nil, handler); err != nil {
-			return fmt.Errorf("cannot run server: %v", err)
+			return fmt.Errorf("fcgi.Serve failed: %v", err)
 		}
 	} else {
 		log.Println("Server listening on port ", defaultHttpPort)
 		if err := http.ListenAndServe(":"+defaultHttpPort, handler); err != nil {
-			return fmt.Errorf("cannot run server: %v", err)
+			return fmt.Errorf("http.ListenAndServe failed on port %s: %v", defaultHttpPort, err)
 		}
 	}
 	return nil
