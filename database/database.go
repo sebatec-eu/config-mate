@@ -39,6 +39,8 @@ func getDataDirResolver() dataDirResolver {
 	return dom
 }
 
+var serviceNameFunc = hostsharing.ServiceName
+
 func setSQLiteDsnDefault(c *Config, dataDirResolver dataDirResolver) {
 	if c.Dsn != "" {
 		return
@@ -47,7 +49,11 @@ func setSQLiteDsnDefault(c *Config, dataDirResolver dataDirResolver) {
 	c.Dsn = "./data.db"
 
 	if dataDirResolver != nil {
-		c.Dsn = filepath.Join(dataDirResolver.DataDir(), "data.db")
+		s, err := serviceNameFunc()
+		if err != nil {
+			s = "data"
+		}
+		c.Dsn = filepath.Join(dataDirResolver.DataDir(), fmt.Sprintf("%s.db", s))
 	}
 
 	dir := filepath.Dir(c.Dsn)

@@ -42,10 +42,18 @@ func TestSetSQLiteDsnDefault(t *testing.T) {
 	})
 
 	t.Run("should use Hostsharing data directory if available", func(t *testing.T) {
+		var _orig = serviceNameFunc
+		serviceNameFunc = func() (string, error) {
+			return "fancyServicename", nil
+		}
+		defer func() {
+			serviceNameFunc = _orig
+		}()
+
 		config := &Config{Type: SQLite, Dsn: ""}
 		setSQLiteDsnDefault(config, mockHostsharingDomain("/tmp/hostsharing/data"))
 
-		expected := "/tmp/hostsharing/data/data.db"
+		expected := "/tmp/hostsharing/data/fancyServicename.db"
 		if config.Dsn != expected {
 			t.Errorf("Expected DSN to be '%s', got '%s'", expected, config.Dsn)
 		}
