@@ -21,6 +21,9 @@ func (u *user) User() string {
 	return u.pac
 }
 
+// Home returns the home directory path for the user.
+// For PAC users, it returns /home/pacs/{pac}/users/{user}.
+// For PAC-only users, it returns /home/pacs/{pac}.
 func (u *user) Home() string {
 	if u.user != nil {
 		return fmt.Sprintf("/home/pacs/%s/users/%s", u.pac, *u.user)
@@ -91,6 +94,9 @@ func domainByWorkingDir(getwd func() (dir string, err error)) (*domain, error) {
 	return ParseDomain(dir)
 }
 
+// DomainByWorkingDir returns the domain parsed from the current working directory.
+// It returns ErrShortPath if the working directory does not contain enough path components
+// to identify a PAC, user, and domain.
 func DomainByWorkingDir() (*domain, error) {
 	return domainByWorkingDir(os.Getwd)
 }
@@ -104,6 +110,8 @@ func isFCGI(fn func() (string, error)) bool {
 	return strings.HasPrefix(dir, "fastcgi")
 }
 
+// IsFCGI checks if the current executable is running in a FastCGI environment
+// by examining the executable path for a "fastcgi" directory component.
 func IsFCGI() bool {
 	return isFCGI(os.Executable)
 }

@@ -1,3 +1,14 @@
+// Package hostsharing provides utilities for applications running in Hostsharing environments.
+//
+// It offers functionality for:
+//   - Service name detection from environment variables or executable paths
+//   - Parsing domain and user information from filesystem paths
+//   - HTTP server configuration for both standard HTTP and FastCGI protocols
+//   - Configuration file loading with support for domain-specific and user home directories
+//   - Structured logging with request context tracking
+//
+// The package is designed to integrate with Hostsharing's directory structure where
+// applications are organized as: /home/pacs/{pac}/users/{user}/doms/{domain}
 package hostsharing
 
 import (
@@ -17,6 +28,7 @@ import (
 
 const defaultHttpPort = "9000"
 
+// ErrNoFcgiEnvironment indicates that the FastCGI environment was not detected.
 var ErrNoFcgiEnvironment = fmt.Errorf("no fcgi environment dedected")
 
 // ListenAndServe starts an HTTP server using either FastCGI or standard HTTP,

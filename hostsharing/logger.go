@@ -43,6 +43,10 @@ func logWriter() io.Writer {
 	return os.Stdout
 }
 
+// RequestLogger returns an HTTP middleware that logs requests using structured logging.
+// It sets up a JSON logger configured for Google Cloud Logging schema,
+// and logs request/response details including optional requestID from the request context.
+// Certain static asset types (css, js, fonts, etc.) are excluded from logging.
 func RequestLogger() func(next http.Handler) http.Handler {
 	serviceName, err := ServiceName()
 	if err != nil {
@@ -82,6 +86,8 @@ func RequestLogger() func(next http.Handler) http.Handler {
 	})
 }
 
+// LogInfo logs an information-level message with the request context.
+// If a request ID is present in the context, it is included in the log record.
 func LogInfo(ctx context.Context, format string, args ...any) {
 	rID := middleware.GetReqID(ctx)
 	if rID != "" {
@@ -91,6 +97,8 @@ func LogInfo(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// LogWarn logs a warning-level message with the request context.
+// If a request ID is present in the context, it is included in the log record.
 func LogWarn(ctx context.Context, format string, args ...any) {
 	rID := middleware.GetReqID(ctx)
 	if rID != "" {
@@ -100,6 +108,8 @@ func LogWarn(ctx context.Context, format string, args ...any) {
 	}
 }
 
+// LogError logs an error-level message with the request context.
+// If a request ID is present in the context, it is included in the log record.
 func LogError(ctx context.Context, format string, args ...any) {
 	rID := middleware.GetReqID(ctx)
 	if rID != "" {
