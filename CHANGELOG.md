@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.0
+
+- **Added**: Comprehensive API documentation comments for `database` and `hostsharing` packages.
+- **Added**: Test coverage for `DomainByWorkingDir()` function with 11 test cases.
+- **Improved**: Configuration file loading now auto-detects app name from `ServiceName()` when not provided.
+- **Updated**: Dependencies including `gorm` (v1.30.5 → v1.31.1), `httplog/v3` (v3.2.2 → v3.3.0), and SQLite driver.
+- **Updated**: GitHub Actions to use latest versions (checkout v6, setup-go v6).
+
 ## v1.6.0
 
 - **Added**: Generic database support for **SQLite** and **MySQL** (via `gorm`).
