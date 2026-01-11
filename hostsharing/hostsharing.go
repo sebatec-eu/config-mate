@@ -98,7 +98,38 @@ func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
+// ReadInConfig reads and unmarshals configuration from a file into the provided value.
+// It attempts to load configuration from a local file first, then falls back to
+// searching in domain-specific and home directories. The function supports custom
+// decode hooks for type conversion during unmarshaling.
+//
+// Parameters:
+//   - rawVal: A pointer to a struct where the unmarshaled configuration will be stored.
+//   - app_name: The application name used to construct config file paths. If empty,
+//     it will be determined automatically via ServiceName(). Config files are expected
+//     to be named as ".<app_name>.conf".
+//   - fs: Optional variadic mapstructure.DecodeHookFunc functions for custom type
+//     conversion during unmarshaling. If none are provided, default hooks are applied:
+//     base64StringToBytesHookFunc(), StringToTimeDurationHookFunc(), and
+//     StringToSliceHookFunc with "," delimiter.
+//
+// Returns:
+//   - error: Returns nil on success, or an error describing what went wrong during
+//     config file reading or unmarshaling.
+//
+// The function searches for config in the following order:
+//  1. Local file: .<app_name>.conf
+//  2. Domain-specific path: /home/pacs/xyz00/users/foobar/doms/example.com/etc/{app_name}
+//  3. Home directory: $HOME/.<app_name>
 func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc) error {
+	if app_name == "" {
+		a, err := ServiceName()
+		if err != nil {
+			return err
+		}
+		app_name = a
+	}
+
 	viper.SetConfigType("yaml")
 	cfg, err := os.ReadFile(fmt.Sprintf(".%s.conf", app_name))
 	if err != nil {
