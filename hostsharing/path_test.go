@@ -221,3 +221,106 @@ func TestIsFCGI(t *testing.T) {
 		}
 	}
 }
+
+func TestDomainByWorkingDir(t *testing.T) {
+	// Test successful cases
+	for _, tc := range []struct {
+		name           string
+		getwd          func() (string, error)
+		expectedUser   string
+		expectedDomain string
+	}{
+		{
+			name:           "valid path with user and domain",
+			getwd:          func() (string, error) { return "/home/pacs/xyz00/users/foobar/doms/example.com", nil },
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name:           "valid path with subdirectories",
+			getwd:          func() (string, error) { return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi", nil },
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name:           "valid path with trailing slash",
+			getwd:          func() (string, error) { return "/home/pacs/xyz00/users/foobar/doms/example.com/", nil },
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name:           "valid path with minimum segments",
+			getwd:          func() (string, error) { return "/home/pacs/abc/users/def/doms/test.org", nil },
+			expectedUser:   "abc-def",
+			expectedDomain: "test.org",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := domainByWorkingDir(tc.getwd)
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			if d == nil {
+				t.Fatal("Expected domain but got nil")
+			}
+
+			if got := d.User(); got != tc.expectedUser {
+				t.Errorf("Expected user %s but got %s", tc.expectedUser, got)
+			}
+
+			if got := d.domain; got != tc.expectedDomain {
+				t.Errorf("Expected domain %s but got %s", tc.expectedDomain, got)
+			}
+		})
+	}
+
+	// Test error cases
+	for _, tc := range []struct {
+		name          string
+		getwd         func() (string, error)
+		expectedError error
+	}{
+		{
+			name:          "getwd returns error",
+			getwd:         func() (string, error) { return "", ErrShortPath },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "getwd returns empty string",
+			getwd:         func() (string, error) { return "", nil },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "getwd returns path with less than 7 segments",
+			getwd:         func() (string, error) { return "/home/pacs/xyz00", nil },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "getwd returns path with only pac, no user or domain",
+			getwd:         func() (string, error) { return "/home/pacs/xyz00/users", nil },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "getwd returns short path",
+			getwd:         func() (string, error) { return "/home/pacs", nil },
+			expectedError: ErrShortPath,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := domainByWorkingDir(tc.getwd)
+
+			if err == nil {
+				t.Error("Expected error but got nil")
+			}
+
+			if d != nil {
+				t.Error("Expected nil domain but got value")
+			}
+
+			if err != tc.expectedError {
+				t.Errorf("Expected error %v but got %v", tc.expectedError, err)
+			}
+		})
+	}
+}

@@ -83,12 +83,16 @@ func ParseUser(p string) (*user, error) {
 	return &user{pac: xs[2], user: &xs[4]}, nil
 }
 
-func DomainByWorkingDir() (*domain, error) {
-	dir, err := os.Getwd()
+func domainByWorkingDir(getwd func() (dir string, err error)) (*domain, error) {
+	dir, err := getwd()
 	if err != nil {
 		return nil, err
 	}
 	return ParseDomain(dir)
+}
+
+func DomainByWorkingDir() (*domain, error) {
+	return domainByWorkingDir(os.Getwd)
 }
 
 func isFCGI(fn func() (string, error)) bool {
