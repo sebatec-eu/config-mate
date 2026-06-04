@@ -4,8 +4,8 @@ go 1.24.1
 
 require (
 	github.com/glebarez/sqlite v1.11.0
-	github.com/go-chi/chi/v5 v5.2.5
-	github.com/go-chi/httplog/v3 v3.3.0
+	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/httplog/v3 v3.4.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/viper v1.21.0
 	gorm.io/driver/mysql v1.6.0
