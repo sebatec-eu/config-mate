@@ -115,11 +115,12 @@ func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
 // searching in domain-specific and home directories. The function supports custom
 // decode hooks for type conversion during unmarshaling.
 //
+// The application name is determined by [ServiceName] (which honors the SERVICE_NAME
+// environment variable and falls back to the executable name). Config files are
+// expected to be named as ".<app_name>.conf".
+//
 // Parameters:
 //   - rawVal: A pointer to a struct where the unmarshaled configuration will be stored.
-//   - app_name: The application name used to construct config file paths. If empty,
-//     it will be determined automatically via ServiceName(). Config files are expected
-//     to be named as ".<app_name>.conf".
 //   - fs: Optional variadic mapstructure.DecodeHookFunc functions for custom type
 //     conversion during unmarshaling. If none are provided, default hooks are applied:
 //     base64StringToBytesHookFunc(), StringToTimeDurationHookFunc(), and
@@ -132,33 +133,30 @@ func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
 // The function searches for config in the following order:
 //  1. Local file: .<app_name>.conf
 //  2. Domain-specific directory: /home/pacs/xyz00/users/foobar/doms/example.com/etc/{app_name}/
-//    (user must create config files under this directory, e.g. /home/pacs/xyz00/users/foobar/doms/example.com/etc/api/config)
+//     (user must create config files under this directory, e.g. /home/pacs/xyz00/users/foobar/doms/example.com/etc/api/config)
 //  3. Home directory: $HOME/.<app_name>/ (user must create config files under this directory)
 //
 // Domain resolution uses [DomainByExecutable], which first honors the
 // CONFIG_BASE_PATH environment variable and falls back to the running
 // executable's directory. Setting CONFIG_BASE_PATH lets local development
 // simulate a Hostsharing layout without a real /home/pacs tree.
-func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc) error {
-	if app_name == "" {
-		a, err := ServiceName()
-		if err != nil {
-			return err
-		}
-		app_name = a
+func ReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
+	appName, err := ServiceName()
+	if err != nil {
+		return err
 	}
 
 	viper.SetConfigType("yaml")
-	cfg, err := os.ReadFile(fmt.Sprintf(".%s.conf", app_name))
+	cfg, err := os.ReadFile(fmt.Sprintf(".%s.conf", appName))
 	if err != nil {
 		domain, err := DomainByExecutable()
 		if err != nil && err != ErrShortPath {
 			panic(err)
 		}
 		if domain != nil {
-			viper.AddConfigPath(fmt.Sprintf("%s/%s", domain.ConfigDir(), app_name))
+			viper.AddConfigPath(fmt.Sprintf("%s/%s", domain.ConfigDir(), appName))
 		}
-		viper.AddConfigPath(fmt.Sprintf("$HOME/.%s", app_name))
+		viper.AddConfigPath(fmt.Sprintf("$HOME/.%s", appName))
 
 		if err := viper.ReadInConfig(); err != nil {
 			return fmt.Errorf("fatal error config file: %w", err)
