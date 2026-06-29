@@ -120,6 +120,21 @@ func DomainByWorkingDir() (*domain, error) {
 	return domainByWorkingDir(os.Getwd)
 }
 
+func domainByExecutable(getExecutable func() (string, error)) (*domain, error) {
+	exe, err := getExecutable()
+	if err != nil {
+		return nil, err
+	}
+	return ParseDomain(filepath.Dir(exe))
+}
+
+// DomainByExecutable returns the domain parsed from the current executable's directory path.
+// It returns ErrShortPath if the executable path does not contain enough components
+// to identify a PAC, user, and domain.
+func DomainByExecutable() (*domain, error) {
+	return domainByExecutable(os.Executable)
+}
+
 func isFCGI(fn func() (string, error)) bool {
 	r, err := fn()
 	if err != nil {

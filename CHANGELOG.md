@@ -4,6 +4,7 @@
 
 - **Added**: `PAC()` method to `user` struct to return the Web-Paket prefix.
 - **Added**: `Domain()` and `DomsDir()` methods to `domain` struct for domain hostname and directory path access.
+- **Added**: `DomainByExecutable()` function to parse domain from FastCGI binary path, analogous to `DomainByWorkingDir()`.
 
 ## v1.8.0 - 2026-06-04
 

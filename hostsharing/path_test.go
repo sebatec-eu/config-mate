@@ -372,3 +372,112 @@ func TestDomainByWorkingDir(t *testing.T) {
 		})
 	}
 }
+
+func TestDomainByExecutable(t *testing.T) {
+	// Test successful cases
+	for _, tc := range []struct {
+		name           string
+		getExecutable  func() (string, error)
+		expectedUser   string
+		expectedDomain string
+	}{
+		{
+			name: "valid executable in fastcgi-ssl directory",
+			getExecutable: func() (string, error) {
+				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi", nil
+			},
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name: "valid executable in fastcgi directory",
+			getExecutable: func() (string, error) {
+				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi/api.fcgi", nil
+			},
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name: "valid executable with trailing slash",
+			getExecutable: func() (string, error) {
+				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi/", nil
+			},
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name:           "valid executable with minimum path",
+			getExecutable:  func() (string, error) { return "/home/pacs/abc/users/def/doms/test.org/fastcgi-ssl/api.fcgi", nil },
+			expectedUser:   "abc-def",
+			expectedDomain: "test.org",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := domainByExecutable(tc.getExecutable)
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			if d == nil {
+				t.Fatal("Expected domain but got nil")
+			}
+
+			if got := d.User(); got != tc.expectedUser {
+				t.Errorf("Expected user %s but got %s", tc.expectedUser, got)
+			}
+
+			if got := d.Domain(); got != tc.expectedDomain {
+				t.Errorf("Expected domain %s but got %s", tc.expectedDomain, got)
+			}
+		})
+	}
+
+	// Test error cases
+	for _, tc := range []struct {
+		name          string
+		getExecutable func() (string, error)
+		expectedError error
+	}{
+		{
+			name:          "getExecutable returns error",
+			getExecutable: func() (string, error) { return "", ErrShortPath },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "getExecutable returns empty string",
+			getExecutable: func() (string, error) { return "", nil },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "executable in pac directory (too shallow)",
+			getExecutable: func() (string, error) { return "/home/pacs/xyz00/api.fcgi", nil },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "executable in users directory (too shallow)",
+			getExecutable: func() (string, error) { return "/home/pacs/xyz00/users/api.fcgi", nil },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "executable in root (too shallow)",
+			getExecutable: func() (string, error) { return "/api.fcgi", nil },
+			expectedError: ErrShortPath,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := domainByExecutable(tc.getExecutable)
+
+			if err == nil {
+				t.Error("Expected error but got nil")
+			}
+
+			if d != nil {
+				t.Error("Expected nil domain but got value")
+			}
+
+			if err != tc.expectedError {
+				t.Errorf("Expected error %v but got %v", tc.expectedError, err)
+			}
+		})
+	}
+}
