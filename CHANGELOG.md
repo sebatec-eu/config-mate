@@ -33,7 +33,7 @@
 
 ## v1.5.0 - 2025-09-11
 
-- **Added**: Generic database package with support for **SQLite3** and **PostgreSQL**.
+- **Added**: Generic database package with support for **SQLite3** and **MySQL**.
 
 ## v1.4.0 - 2025-09-09
 
