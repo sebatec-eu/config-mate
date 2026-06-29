@@ -188,24 +188,6 @@ func parseDomainFromBase(p string) (*domain, error) {
 	return &domain{domain: host, base: p}, nil
 }
 
-// domainByWorkingDir resolves the domain from the current working directory.
-func domainByWorkingDir(getwd func() (dir string, err error)) (*domain, error) {
-	dir, err := getwd()
-	if err != nil {
-		return nil, err
-	}
-	return ParseDomain(dir)
-}
-
-// DomainByWorkingDir returns the domain parsed from the current working directory.
-// Returns ErrShortPath if the path lacks enough components to identify PAC, user, and domain.
-//
-// Deprecated: Use [DomainByExecutable]. It resists startup `chdir` and is used internally
-// by [hostsharing.ReadInConfig] and the database package. Will be removed in v2.
-func DomainByWorkingDir() (*domain, error) {
-	return domainByWorkingDir(os.Getwd)
-}
-
 // domainByExecutable resolves the domain from CONFIG_BASE_PATH first, then the executable's directory.
 // Both seams are injected for testability.
 //
