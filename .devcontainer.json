@@ -1,15 +1,5 @@
 {
-  "name": "config-mate",
-  "image": "ghcr.io/sebatec-eu/go-devcontainer:1",
-  "features": {},
-  "customizations": {
-    "vscode": {
-      "settings": {},
-      "extensions": []
-    }
-  },
-  "forwardPorts": [],
-  "runArgs": ["--userns=keep-id"],
+  "image": "forge.sebatec.eu/sebatec-eu/devcontainers/standard:1",
   "postCreateCommand": "go version",
   "containerUser": "vscode"
 }
