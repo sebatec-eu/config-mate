@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.9.0 - Unreleased
+
+- **Added**: `PAC()` method to `user` struct to return the Web-Paket prefix.
+- **Added**: `Domain()` and `DomsDir()` methods to `domain` struct for domain hostname and directory path access.
+
 ## v1.8.0 - 2026-06-04
 
 - **Added**: `.agents/skills/changelog-writer` skill for structured changelog management.

@@ -39,9 +39,28 @@ func (u *user) ConfigDir() string {
 	return fmt.Sprintf("%s/etc", u.Home())
 }
 
+// PAC returns the Web-Paket prefix (e.g. "xyz00"), independent of any
+// Domain-Admin or Email-User sub-account name.
+func (u *user) PAC() string {
+	return u.pac
+}
+
 type domain struct {
 	user
 	domain string
+}
+
+// Domain returns the doms hostname (e.g. "example.org") — the directory
+// name under .../doms/ where this domain's config, logs, and data live.
+func (d *domain) Domain() string {
+	return d.domain
+}
+
+// DomsDir returns the .../doms/{hostname} directory for this domain,
+// without trailing "/etc", "/var", or "/data". It mirrors the layout of
+// Home() — pac-only paths drop the /users/{u} segment.
+func (d *domain) DomsDir() string {
+	return fmt.Sprintf("%s/doms/%s", d.Home(), d.domain)
 }
 
 func (d *domain) ConfigDir() string {

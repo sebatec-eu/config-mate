@@ -68,7 +68,7 @@ func TestParseDomain(t *testing.T) {
 			t.Errorf("Expected %s but got %s", tc.expectedUser, got)
 		}
 
-		if got := u.domain; got != tc.expectedDomain {
+		if got := u.Domain(); got != tc.expectedDomain {
 			t.Errorf("Expected %s but got %s", tc.expectedUser, got)
 		}
 	}
@@ -115,6 +115,22 @@ func TestUserUser(t *testing.T) {
 		}
 	}
 }
+
+func TestUserPAC(t *testing.T) {
+	for _, tc := range []struct {
+		user
+		expected string
+	}{
+		{user{"xyz00", nil}, "xyz00"},
+		{user{"xyz00", &[]string{"example"}[0]}, "xyz00"},
+		{user{"xyz00", &[]string{"www.example.com"}[0]}, "xyz00"},
+	} {
+		if got := tc.PAC(); got != tc.expected {
+			t.Errorf("Expected %s but got %s", tc.expected, got)
+		}
+	}
+}
+
 func TestUserHome(t *testing.T) {
 	for _, tc := range []struct {
 		user
@@ -205,6 +221,36 @@ func TestDomainLogDir(t *testing.T) {
 	}
 }
 
+func TestDomainDomain(t *testing.T) {
+	for _, tc := range []struct {
+		domain
+		expected string
+	}{
+		{domain{user{"xyz00", nil}, "example.com"}, "example.com"},
+		{domain{user{"xyz00", &[]string{"example"}[0]}, "example.com"}, "example.com"},
+		{domain{user{"xyz00", &[]string{"www.example.com"}[0]}, "example.org"}, "example.org"},
+	} {
+		if got := tc.Domain(); got != tc.expected {
+			t.Errorf("Expected %s but got %s", tc.expected, got)
+		}
+	}
+}
+
+func TestDomainDomsDir(t *testing.T) {
+	for _, tc := range []struct {
+		domain
+		expected string
+	}{
+		{domain{user{"xyz00", nil}, "example.com"}, "/home/pacs/xyz00/doms/example.com"},
+		{domain{user{"xyz00", &[]string{"example"}[0]}, "example.com"}, "/home/pacs/xyz00/users/example/doms/example.com"},
+		{domain{user{"xyz00", &[]string{"www.example.com"}[0]}, "example.org"}, "/home/pacs/xyz00/users/www.example.com/doms/example.org"},
+	} {
+		if got := tc.DomsDir(); got != tc.expected {
+			t.Errorf("Expected %s but got %s", tc.expected, got)
+		}
+	}
+}
+
 func TestIsFCGI(t *testing.T) {
 	for _, tc := range []struct {
 		path     string
@@ -237,8 +283,10 @@ func TestDomainByWorkingDir(t *testing.T) {
 			expectedDomain: "example.com",
 		},
 		{
-			name:           "valid path with subdirectories",
-			getwd:          func() (string, error) { return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi", nil },
+			name: "valid path with subdirectories",
+			getwd: func() (string, error) {
+				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi", nil
+			},
 			expectedUser:   "xyz00-foobar",
 			expectedDomain: "example.com",
 		},
@@ -269,7 +317,7 @@ func TestDomainByWorkingDir(t *testing.T) {
 				t.Errorf("Expected user %s but got %s", tc.expectedUser, got)
 			}
 
-			if got := d.domain; got != tc.expectedDomain {
+			if got := d.Domain(); got != tc.expectedDomain {
 				t.Errorf("Expected domain %s but got %s", tc.expectedDomain, got)
 			}
 		})
