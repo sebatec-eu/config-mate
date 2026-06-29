@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking Change**: `user.PAC()` and `user.User()` now return `(string, error)` and report `ErrNoPAC` / `ErrNoUser` when the parsed path lacks the corresponding segment. Callers must handle the error.
+- **Added**: `HasPAC()` and `HasUser()` predicates on `user` for cheap checks where errors are noise.
+- **Added**: `ErrNoPAC` and `ErrNoUser` sentinel errors.
+- **Improved**: `DomainByExecutable()` now resolves non-Hostsharing paths via a `doms/{host}` anchor scan, so dev setups like `CONFIG_BASE_PATH=/srv/doms/example.com/fastcgi-ssl/api.fcgi` produce a `Domain` without a PAC or User.
+- **Improved**: `domain.DomsDir()`, `ConfigDir()`, `LogDir()`, and `DataDir()` return meaningful dev paths (anchored at the parsed `doms/{host}` segment) when PAC is absent, instead of failing.
+
 ## v1.9.0 - 2026-06-29
 
 - **Added**: `PAC()` method to `user` struct to return the Web-Paket prefix.

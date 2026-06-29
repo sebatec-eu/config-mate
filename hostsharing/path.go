@@ -12,16 +12,38 @@ import (
 // 5 for users, or 3 for PAC-only paths).
 var ErrShortPath = fmt.Errorf("cannot detect PAC/user/domain from path")
 
+// ErrNoPAC is returned by user.PAC and user.User when no PAC segment was
+// found in the parsed path (e.g. a non-Hostsharing dev path like
+// /srv/doms/example.com/...).
+var ErrNoPAC = fmt.Errorf("no PAC in path")
+
+// ErrNoUser is returned by user.User when the parsed path has no
+// Domain-Admin or Email-User sub-account segment.
+var ErrNoUser = fmt.Errorf("no user in path")
+
 type user struct {
 	pac  string
 	user *string
 }
 
-func (u *user) User() string {
-	if u.user != nil {
-		return fmt.Sprintf("%s-%s", u.pac, *u.user)
+// HasPAC reports whether the parsed path contains a PAC segment.
+func (u *user) HasPAC() bool {
+	return u.pac != ""
+}
+
+// HasUser reports whether the parsed path contains a user sub-account segment.
+func (u *user) HasUser() bool {
+	return u.user != nil
+}
+
+func (u *user) User() (string, error) {
+	if u.pac == "" {
+		return "", ErrNoPAC
 	}
-	return u.pac
+	if u.user == nil {
+		return "", ErrNoUser
+	}
+	return fmt.Sprintf("%s-%s", u.pac, *u.user), nil
 }
 
 // Home returns the home directory path for the user.
@@ -43,14 +65,20 @@ func (u *user) ConfigDir() string {
 }
 
 // PAC returns the Web-Paket prefix (e.g. "xyz00"), independent of any
-// Domain-Admin or Email-User sub-account name.
-func (u *user) PAC() string {
-	return u.pac
+// Domain-Admin or Email-User sub-account name. Returns ErrNoPAC if the
+// parsed path did not contain a PAC segment (e.g. a non-Hostsharing dev
+// path).
+func (u *user) PAC() (string, error) {
+	if u.pac == "" {
+		return "", ErrNoPAC
+	}
+	return u.pac, nil
 }
 
 type domain struct {
 	user
 	domain string
+	base   string // original path parseDomainFromBase was called with; used by dev-mode *Dir() methods
 }
 
 // Domain returns the doms hostname (e.g. "example.org") — the directory
@@ -61,21 +89,45 @@ func (d *domain) Domain() string {
 
 // DomsDir returns the .../doms/{hostname} directory for this domain,
 // without trailing "/etc", "/var", or "/data". It mirrors the layout of
-// Home() — pac-only paths drop the /users/{u} segment.
+// Home() — pac-only paths drop the /users/{u} segment. When PAC is
+// absent (non-Hostsharing dev path), the dir is anchored at the parsed
+// base path's doms/{host} segment.
 func (d *domain) DomsDir() string {
-	return fmt.Sprintf("%s/doms/%s", d.Home(), d.domain)
+	if d.HasPAC() {
+		return fmt.Sprintf("%s/doms/%s", d.Home(), d.domain)
+	}
+	return d.devPrefix() + "/doms/" + d.domain
 }
 
 func (d *domain) ConfigDir() string {
-	return fmt.Sprintf("%s/doms/%s/etc", d.Home(), d.domain)
+	if d.HasPAC() {
+		return fmt.Sprintf("%s/doms/%s/etc", d.Home(), d.domain)
+	}
+	return d.devPrefix() + "/doms/" + d.domain + "/etc"
 }
 
 func (d *domain) LogDir() string {
-	return fmt.Sprintf("%s/doms/%s/var", d.Home(), d.domain)
+	if d.HasPAC() {
+		return fmt.Sprintf("%s/doms/%s/var", d.Home(), d.domain)
+	}
+	return d.devPrefix() + "/doms/" + d.domain + "/var"
 }
 
 func (d *domain) DataDir() string {
-	return fmt.Sprintf("%s/doms/%s/data", d.Home(), d.domain)
+	if d.HasPAC() {
+		return fmt.Sprintf("%s/doms/%s/data", d.Home(), d.domain)
+	}
+	return d.devPrefix() + "/doms/" + d.domain + "/data"
+}
+
+func (d *domain) devPrefix() string {
+	xs := strings.Split(strings.Trim(d.base, "/"), "/")
+	for i, seg := range xs {
+		if seg == "doms" {
+			return "/" + strings.Join(xs[:i], "/")
+		}
+	}
+	return ""
 }
 
 func ParseDomain(p string) (*domain, error) {
@@ -91,7 +143,7 @@ func ParseDomain(p string) (*domain, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &domain{*u, xs[6]}, nil
+	return &domain{user: *u, domain: xs[6]}, nil
 }
 
 func ParseUser(p string) (*user, error) {
@@ -106,6 +158,34 @@ func ParseUser(p string) (*user, error) {
 		return &user{pac: xs[2]}, nil
 	}
 	return &user{pac: xs[2], user: &xs[4]}, nil
+}
+
+func findDomsDomain(xs []string) (string, bool) {
+	for i, seg := range xs {
+		if seg == "doms" && i+1 < len(xs) {
+			return xs[i+1], true
+		}
+	}
+	return "", false
+}
+
+// parseDomainFromBase resolves a domain from any path. It first tries the
+// full Hostsharing layout (ParseDomain); on ErrShortPath it falls back to
+// a doms-anchor scan so non-Hostsharing dev paths still produce a Domain.
+func parseDomainFromBase(p string) (*domain, error) {
+	if d, err := ParseDomain(p); err == nil {
+		d.base = p
+		return d, nil
+	} else if err != ErrShortPath {
+		return nil, err
+	}
+
+	xs := strings.Split(strings.Trim(p, "/"), "/")
+	host, ok := findDomsDomain(xs)
+	if !ok {
+		return nil, ErrShortPath
+	}
+	return &domain{domain: host, base: p}, nil
 }
 
 // domainByWorkingDir resolves the domain from the current working directory.
@@ -134,7 +214,7 @@ func DomainByWorkingDir() (*domain, error) {
 // directory if ErrShortPath occurs. Other parse errors propagate immediately.
 func domainByExecutable(envLookup func(string) string, getExecutable func() (string, error)) (*domain, error) {
 	if base := envLookup("CONFIG_BASE_PATH"); base != "" {
-		d, err := ParseDomain(base)
+		d, err := parseDomainFromBase(base)
 		if err == nil {
 			return d, nil
 		}
@@ -142,7 +222,7 @@ func domainByExecutable(envLookup func(string) string, getExecutable func() (str
 			return nil, err
 		}
 		// Try the parent directory: env var may point at a binary file.
-		d, err = ParseDomain(filepath.Dir(base))
+		d, err = parseDomainFromBase(filepath.Dir(base))
 		if err != nil && err != ErrShortPath {
 			return nil, err
 		}
@@ -155,7 +235,7 @@ func domainByExecutable(envLookup func(string) string, getExecutable func() (str
 	if err != nil {
 		return nil, err
 	}
-	return ParseDomain(filepath.Dir(exe))
+	return parseDomainFromBase(filepath.Dir(exe))
 }
 
 // DomainByExecutable returns the domain parsed from the current executable's directory path.
