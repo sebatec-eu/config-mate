@@ -1,4 +1,4 @@
-module github.com/sebatec-eu/config-mate
+module github.com/sebatec-eu/config-mate/v2
 
 go 1.24.1
 

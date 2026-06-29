@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/glebarez/sqlite"
-	"github.com/sebatec-eu/config-mate/hostsharing"
+	"github.com/sebatec-eu/config-mate/v2/hostsharing"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
