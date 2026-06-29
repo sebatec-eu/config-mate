@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.9.0 - Unreleased
+## v1.9.0 - 2026-06-29
 
 - **Added**: `PAC()` method to `user` struct to return the Web-Paket prefix.
 - **Added**: `Domain()` and `DomsDir()` methods to `domain` struct for domain hostname and directory path access.
@@ -9,6 +9,8 @@
 - **Updated**: `hostsharing.ReadInConfig` and `database.getDataDirResolver` now use `DomainByExecutable()` instead of `DomainByWorkingDir()`, making startup robust against later `chdir`.
 - **Fixed**: `hostsharing.fcgiLogFile` falls back to `os.Stdout` instead of panicking when the executable path is too shallow to extract a domain. Protects local development and `IsFCGI()` false positives.
 - **Deprecated**: `DomainByWorkingDir()`. Use `DomainByExecutable()` instead. Will be removed in v2.
+- **Updated**: `gorm.io/gorm` dependency (v1.31.1 → v1.31.2).
+- **Updated**: `.devcontainer.json` configuration cleanup.
 
 ## v1.8.0 - 2026-06-04
 
