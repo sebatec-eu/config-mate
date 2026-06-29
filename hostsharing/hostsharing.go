@@ -131,8 +131,14 @@ func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
 //
 // The function searches for config in the following order:
 //  1. Local file: .<app_name>.conf
-//  2. Domain-specific path: /home/pacs/xyz00/users/foobar/doms/example.com/etc/{app_name}
-//  3. Home directory: $HOME/.<app_name>
+//  2. Domain-specific directory: /home/pacs/xyz00/users/foobar/doms/example.com/etc/{app_name}/
+//    (user must create config files under this directory, e.g. /home/pacs/xyz00/users/foobar/doms/example.com/etc/api/config)
+//  3. Home directory: $HOME/.<app_name>/ (user must create config files under this directory)
+//
+// Domain resolution uses [DomainByExecutable], which first honors the
+// CONFIG_BASE_PATH environment variable and falls back to the running
+// executable's directory. Setting CONFIG_BASE_PATH lets local development
+// simulate a Hostsharing layout without a real /home/pacs tree.
 func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc) error {
 	if app_name == "" {
 		a, err := ServiceName()
@@ -145,7 +151,7 @@ func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc
 	viper.SetConfigType("yaml")
 	cfg, err := os.ReadFile(fmt.Sprintf(".%s.conf", app_name))
 	if err != nil {
-		domain, err := DomainByWorkingDir()
+		domain, err := DomainByExecutable()
 		if err != nil && err != ErrShortPath {
 			panic(err)
 		}

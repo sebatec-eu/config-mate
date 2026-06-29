@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-var ErrShortPath = fmt.Errorf("cannot dedect anything")
+// ErrShortPath is returned when a path lacks enough components to identify
+// a PAC, user, and domain (requires at least 7 path segments for domains,
+// 5 for users, or 3 for PAC-only paths).
+var ErrShortPath = fmt.Errorf("cannot detect PAC/user/domain from path")
 
 type user struct {
 	pac  string
@@ -105,6 +108,7 @@ func ParseUser(p string) (*user, error) {
 	return &user{pac: xs[2], user: &xs[4]}, nil
 }
 
+// domainByWorkingDir resolves the domain from the current working directory.
 func domainByWorkingDir(getwd func() (dir string, err error)) (*domain, error) {
 	dir, err := getwd()
 	if err != nil {
@@ -114,13 +118,39 @@ func domainByWorkingDir(getwd func() (dir string, err error)) (*domain, error) {
 }
 
 // DomainByWorkingDir returns the domain parsed from the current working directory.
-// It returns ErrShortPath if the working directory does not contain enough path components
-// to identify a PAC, user, and domain.
+// Returns ErrShortPath if the path lacks enough components to identify PAC, user, and domain.
+//
+// Deprecated: Use [DomainByExecutable]. It resists startup `chdir` and is used internally
+// by [hostsharing.ReadInConfig] and the database package. Will be removed in v2.
 func DomainByWorkingDir() (*domain, error) {
 	return domainByWorkingDir(os.Getwd)
 }
 
-func domainByExecutable(getExecutable func() (string, error)) (*domain, error) {
+// domainByExecutable resolves the domain from CONFIG_BASE_PATH first, then the executable's directory.
+// Both seams are injected for testability.
+//
+// CONFIG_BASE_PATH can be a binary path (e.g., `/home/pacs/.../api.fcgi`) or a directory
+// (e.g., `/home/pacs/.../doms/example.com`). We parse it as-is first, then try its parent
+// directory if ErrShortPath occurs. Other parse errors propagate immediately.
+func domainByExecutable(envLookup func(string) string, getExecutable func() (string, error)) (*domain, error) {
+	if base := envLookup("CONFIG_BASE_PATH"); base != "" {
+		d, err := ParseDomain(base)
+		if err == nil {
+			return d, nil
+		}
+		if err != ErrShortPath {
+			return nil, err
+		}
+		// Try the parent directory: env var may point at a binary file.
+		d, err = ParseDomain(filepath.Dir(base))
+		if err != nil && err != ErrShortPath {
+			return nil, err
+		}
+		if d != nil {
+			return d, nil
+		}
+		// Fall through to the executable branch below.
+	}
 	exe, err := getExecutable()
 	if err != nil {
 		return nil, err
@@ -129,10 +159,16 @@ func domainByExecutable(getExecutable func() (string, error)) (*domain, error) {
 }
 
 // DomainByExecutable returns the domain parsed from the current executable's directory path.
-// It returns ErrShortPath if the executable path does not contain enough components
-// to identify a PAC, user, and domain.
+//
+// Resolution order:
+//  1. If CONFIG_BASE_PATH is set, parse it as-is; on ErrShortPath, parse its parent directory.
+//     This lets local dev point to a binary (…/api.fcgi) or directory (…/doms/example.com).
+//  2. Otherwise, parse the executable's directory.
+//
+// Returns ErrShortPath if no source has enough path components for PAC/user/domain.
+// If CONFIG_BASE_PATH is set but invalid, ErrShortPath propagates to signal the error.
 func DomainByExecutable() (*domain, error) {
-	return domainByExecutable(os.Executable)
+	return domainByExecutable(os.Getenv, os.Executable)
 }
 
 func isFCGI(fn func() (string, error)) bool {

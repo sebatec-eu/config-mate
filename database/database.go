@@ -45,7 +45,7 @@ type dataDirResolver interface {
 }
 
 func getDataDirResolver() dataDirResolver {
-	dom, err := hostsharing.DomainByWorkingDir()
+	dom, err := hostsharing.DomainByExecutable()
 	if err != nil {
 		return nil
 	}

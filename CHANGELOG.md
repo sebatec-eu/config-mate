@@ -4,7 +4,11 @@
 
 - **Added**: `PAC()` method to `user` struct to return the Web-Paket prefix.
 - **Added**: `Domain()` and `DomsDir()` methods to `domain` struct for domain hostname and directory path access.
-- **Added**: `DomainByExecutable()` function to parse domain from FastCGI binary path, analogous to `DomainByWorkingDir()`.
+- **Added**: `DomainByExecutable()` to parse domain from FastCGI binary path (like `DomainByWorkingDir`). Honors `CONFIG_BASE_PATH` first, allowing local dev to simulate Hostsharing layouts without `/home/pacs`. Accepts file paths (`…/api.fcgi`) and directories (`…/doms/example.com`).
+- **Added**: `CONFIG_BASE_PATH` env var for local development. Set to an absolute path encoding PAC/user/dom layout to make `ConfigDir()`, `LogDir()`, and `DataDir()` resolve predictably.
+- **Updated**: `hostsharing.ReadInConfig` and `database.getDataDirResolver` now use `DomainByExecutable()` instead of `DomainByWorkingDir()`, making startup robust against later `chdir`.
+- **Fixed**: `hostsharing.fcgiLogFile` falls back to `os.Stdout` instead of panicking when the executable path is too shallow to extract a domain. Protects local development and `IsFCGI()` false positives.
+- **Deprecated**: `DomainByWorkingDir()`. Use `DomainByExecutable()` instead. Will be removed in v2.
 
 ## v1.8.0 - 2026-06-04
 

@@ -17,12 +17,15 @@ import (
 func fcgiLogFile(fn func() (string, error)) (string, error) {
 	exePath, err := fn()
 	if err != nil {
-		panic(fmt.Errorf("failed to get my own path: %e", err))
+		return "", nil
 	}
 
 	domain, err := ParseDomain(exePath)
 	if err != nil {
-		panic(fmt.Errorf("failed to get my own path: %e", err))
+		if err == ErrShortPath {
+			return "", nil
+		}
+		return "", err
 	}
 	b := strings.TrimSuffix(filepath.Base(exePath), ".fcgi")
 	return fmt.Sprintf("%s/%s.log", domain.LogDir(), b), nil
@@ -31,12 +34,12 @@ func fcgiLogFile(fn func() (string, error)) (string, error) {
 func logWriter() io.Writer {
 	if IsFCGI() {
 		logFile, err := fcgiLogFile(os.Executable)
-		if err != nil {
-			panic(fmt.Errorf("failed to get my own path: %e", err))
+		if err != nil || logFile == "" {
+			return os.Stdout
 		}
 		f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			panic(err)
+			return os.Stdout
 		}
 		return f
 	}

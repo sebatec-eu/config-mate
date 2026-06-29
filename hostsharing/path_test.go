@@ -374,15 +374,19 @@ func TestDomainByWorkingDir(t *testing.T) {
 }
 
 func TestDomainByExecutable(t *testing.T) {
+	noEnv := func(string) string { return "" }
+
 	// Test successful cases
 	for _, tc := range []struct {
 		name           string
+		envLookup      func(string) string
 		getExecutable  func() (string, error)
 		expectedUser   string
 		expectedDomain string
 	}{
 		{
-			name: "valid executable in fastcgi-ssl directory",
+			name:          "valid executable in fastcgi-ssl directory",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) {
 				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi", nil
 			},
@@ -390,7 +394,8 @@ func TestDomainByExecutable(t *testing.T) {
 			expectedDomain: "example.com",
 		},
 		{
-			name: "valid executable in fastcgi directory",
+			name:          "valid executable in fastcgi directory",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) {
 				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi/api.fcgi", nil
 			},
@@ -398,7 +403,8 @@ func TestDomainByExecutable(t *testing.T) {
 			expectedDomain: "example.com",
 		},
 		{
-			name: "valid executable with trailing slash",
+			name:          "valid executable with trailing slash",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) {
 				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi/", nil
 			},
@@ -407,13 +413,49 @@ func TestDomainByExecutable(t *testing.T) {
 		},
 		{
 			name:           "valid executable with minimum path",
+			envLookup:      noEnv,
 			getExecutable:  func() (string, error) { return "/home/pacs/abc/users/def/doms/test.org/fastcgi-ssl/api.fcgi", nil },
 			expectedUser:   "abc-def",
 			expectedDomain: "test.org",
 		},
+		{
+			name:           "CONFIG_BASE_PATH set to valid fastcgi-ssl path",
+			envLookup:      func(string) string { return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi" },
+			getExecutable:  func() (string, error) { return "/tmp/go-build/whatever/exe/main", nil },
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name: "CONFIG_BASE_PATH wins over executable",
+			envLookup: func(string) string {
+				return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi"
+			},
+			getExecutable: func() (string, error) {
+				return "/home/pacs/other/users/different/doms/other.org/fastcgi-ssl/api.fcgi", nil
+			},
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			name:           "CONFIG_BASE_PATH set to bare doms path",
+			envLookup:      func(string) string { return "/home/pacs/xyz00/users/foobar/doms/example.com" },
+			getExecutable:  func() (string, error) { return "/tmp/go-build/whatever/exe/main", nil },
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
+		{
+			// CONFIG_BASE_PATH is too shallow even after filepath.Dir falls back
+			// to "/". The function then falls through to the executable branch,
+			// which succeeds — dev-opt-in behavior.
+			name:           "CONFIG_BASE_PATH too shallow falls through to executable",
+			envLookup:      func(string) string { return "/api.fcgi" },
+			getExecutable:  func() (string, error) { return "/home/pacs/xyz00/users/foobar/doms/example.com/fastcgi-ssl/api.fcgi", nil },
+			expectedUser:   "xyz00-foobar",
+			expectedDomain: "example.com",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := domainByExecutable(tc.getExecutable)
+			d, err := domainByExecutable(tc.envLookup, tc.getExecutable)
 			if err != nil {
 				t.Errorf("Expected no error but got: %v", err)
 			}
@@ -435,37 +477,49 @@ func TestDomainByExecutable(t *testing.T) {
 	// Test error cases
 	for _, tc := range []struct {
 		name          string
+		envLookup     func(string) string
 		getExecutable func() (string, error)
 		expectedError error
 	}{
 		{
 			name:          "getExecutable returns error",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) { return "", ErrShortPath },
 			expectedError: ErrShortPath,
 		},
 		{
 			name:          "getExecutable returns empty string",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) { return "", nil },
 			expectedError: ErrShortPath,
 		},
 		{
 			name:          "executable in pac directory (too shallow)",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) { return "/home/pacs/xyz00/api.fcgi", nil },
 			expectedError: ErrShortPath,
 		},
 		{
 			name:          "executable in users directory (too shallow)",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) { return "/home/pacs/xyz00/users/api.fcgi", nil },
 			expectedError: ErrShortPath,
 		},
 		{
 			name:          "executable in root (too shallow)",
+			envLookup:     noEnv,
 			getExecutable: func() (string, error) { return "/api.fcgi", nil },
+			expectedError: ErrShortPath,
+		},
+		{
+			name:          "CONFIG_BASE_PATH set but shallow (propagates ErrShortPath)",
+			envLookup:     func(string) string { return "/home/pacs/xyz00/api.fcgi" },
+			getExecutable: func() (string, error) { return "/tmp/go-build/whatever/exe/main", nil },
 			expectedError: ErrShortPath,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := domainByExecutable(tc.getExecutable)
+			d, err := domainByExecutable(tc.envLookup, tc.getExecutable)
 
 			if err == nil {
 				t.Error("Expected error but got nil")
