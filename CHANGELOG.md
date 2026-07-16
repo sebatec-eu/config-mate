@@ -10,6 +10,11 @@
 - **Improved**: `DomainByExecutable()` now resolves non-Hostsharing paths via a `doms/{host}` anchor scan, so dev setups like `CONFIG_BASE_PATH=/srv/doms/example.com/fastcgi-ssl/api.fcgi` produce a `Domain` without a PAC or User.
 - **Improved**: `domain.DomsDir()`, `ConfigDir()`, `LogDir()`, and `DataDir()` return meaningful dev paths (anchored at the parsed `doms/{host}` segment) when PAC is absent, instead of failing.
 
+## v1.10.0 - 2026-07-16
+
+- **Added**: `Base64StringToBytesHookFunc(encs ...*base64.Encoding)`, exported for callers that need a custom base64 alphabet or a fallback chain across multiple alphabets. Padding rules are set per encoding via the `*base64.Encoding` argument (e.g. `RawStdEncoding`, `RawURLEncoding`, or `Encoding.WithPadding`).
+- **Updated**: `ReadInConfig` default base64 hook now tries `base64.StdEncoding` then `base64.URLEncoding`. Configs using URL-safe base64 that previously failed validation now decode automatically.
+
 ## v1.9.0 - 2026-06-29
 
 - **Added**: `PAC()` method to `user` struct to return the Web-Paket prefix.
