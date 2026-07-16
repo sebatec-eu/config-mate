@@ -90,22 +90,24 @@ func ListenAndServe(handler http.Handler) error {
 	return nil
 }
 
-func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data interface{}) (interface{}, error) {
-		if f.Kind() != reflect.String {
+// Base64StringToBytesHookFunc returns a mapstructure decode hook that turns
+// string fields into []byte by trying each encoding in order. The first
+// encoding that decodes the string wins; if none decode it, the string is
+// returned unchanged. Pass one encoding to accept a single alphabet, several
+// to accept a fallback chain (for example StdEncoding then URLEncoding).
+// Padding rules are set on each encoding — use RawStdEncoding, RawURLEncoding,
+// or Encoding.WithPadding for unpadded or custom-padded input.
+func Base64StringToBytesHookFunc(encs ...*base64.Encoding) mapstructure.DecodeHookFuncType {
+	return func(f, t reflect.Type, data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String || t != reflect.TypeOf([]byte{}) {
 			return data, nil
 		}
-		if t != reflect.TypeOf([]byte{}) {
-			return data, nil
+		s, _ := data.(string)
+		for _, enc := range encs {
+			if result, err := enc.DecodeString(s); err == nil {
+				return result, nil
+			}
 		}
-
-		if result, err := base64.StdEncoding.DecodeString(data.(string)); err == nil {
-			return result, nil
-		}
-
 		return data, nil
 	}
 }
@@ -122,8 +124,8 @@ func base64StringToBytesHookFunc() mapstructure.DecodeHookFunc {
 //     to be named as ".<app_name>.conf".
 //   - fs: Optional variadic mapstructure.DecodeHookFunc functions for custom type
 //     conversion during unmarshaling. If none are provided, default hooks are applied:
-//     base64StringToBytesHookFunc(), StringToTimeDurationHookFunc(), and
-//     StringToSliceHookFunc with "," delimiter.
+//     Base64StringToBytesHookFunc(base64.StdEncoding, base64.URLEncoding),
+//     StringToTimeDurationHookFunc(), and StringToSliceHookFunc with "," delimiter.
 //
 // Returns:
 //   - error: Returns nil on success, or an error describing what went wrong during
@@ -169,7 +171,7 @@ func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc
 
 	if len(fs) <= 0 {
 		fs = append(fs,
-			base64StringToBytesHookFunc(),
+			Base64StringToBytesHookFunc(base64.StdEncoding, base64.URLEncoding),
 			mapstructure.StringToTimeDurationHookFunc(),
 			mapstructure.StringToSliceHookFunc(","),
 		)
