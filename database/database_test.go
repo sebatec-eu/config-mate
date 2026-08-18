@@ -18,7 +18,7 @@ func (m mockDataDir) DataDir() string {
 }
 
 // Mock hostsharing data
-func mockHostsharingDomain(dataDir string) dataDirResolver {
+func mockHostsharingDomain(dataDir string) DataDirResolver {
 	return mockDataDir{dir: dataDir}
 }
 

@@ -41,34 +41,52 @@ type Config struct {
 	Debug bool
 }
 
-type dataDirResolver interface {
+// DataDirResolver is the minimum surface needed by the SQLite default-DSN
+// resolver: a struct that can return an absolute data directory. Hostsharing
+// apps get this for free via hostsharing.DomainByExecutable(); VM apps
+// should provide their own implementation (e.g. backed by an env var or a
+// /etc/myapp/datadir file) by overriding DataDirResolverFunc below.
+type DataDirResolver interface {
 	DataDir() string
 }
 
-func getDataDirResolver() dataDirResolver {
+// DataDirResolverFunc is the seam VM/Root apps use to point the default
+// SQLite DSN at a non-Hostsharing data directory. The default is the
+// Hostsharing-aware resolver; override it before calling [Open] to use a
+// different strategy. Setting it to nil restores the "no resolver" case
+// where Open falls back to ./data.db in the current working directory.
+//
+// Example (VM with /var/lib/myapp):
+//
+//	func init() {
+//	    database.DataDirResolverFunc = func() (database.DataDirResolver, error) {
+//	        return myVMResolver{Dir: "/var/lib/myapp"}, nil
+//	    }
+//	}
+var DataDirResolverFunc = func() (DataDirResolver, error) {
 	dom, err := hostsharing.DomainByExecutable()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	return dom
+	return dom, nil
 }
 
 var serviceNameFunc = core.ServiceName
 
-func setSQLiteDsnDefault(c *Config, dataDirResolver dataDirResolver) {
+func setSQLiteDsnDefault(c *Config, resolver DataDirResolver) {
 	if c.Dsn != "" {
 		return
 	}
 
 	c.Dsn = "./data.db"
 
-	if dataDirResolver != nil {
+	if resolver != nil {
 		s, err := serviceNameFunc()
 		if err != nil {
 			s = "data"
 		}
-		c.Dsn = filepath.Join(dataDirResolver.DataDir(), fmt.Sprintf("%s.db", s))
+		c.Dsn = filepath.Join(resolver.DataDir(), fmt.Sprintf("%s.db", s))
 	}
 
 	dir := filepath.Dir(c.Dsn)
@@ -100,7 +118,11 @@ func Open(c Config) (*gorm.DB, error) {
 		}
 		dialector = mysql.Open(c.Dsn)
 	case SQLite:
-		setSQLiteDsnDefault(&c, getDataDirResolver())
+		resolver, err := DataDirResolverFunc()
+		if err != nil {
+			resolver = nil
+		}
+		setSQLiteDsnDefault(&c, resolver)
 		dialector = sqlite.Open(c.Dsn)
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", c.Type)
