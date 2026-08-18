@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Breaking Change**: package layout reorganised. The single `hostsharing` package has been split into three focused packages:
+  - `core/` holds environment-agnostic helpers: `Base64StringToBytesHookFunc`, `ServiceName`, `IsFCGI`, `XdgConfigHome`. Nothing in `core/` imports the hostsharing package.
+  - `server/` holds environment-aware server plumbing: `ListenAndServe`, `RequestLogger`, `LogInfo` / `LogWarn` / `LogError`, `ReadInConfig`. Depends on `core/` and (for path-derived log file resolution) `hostsharing/`.
+  - `hostsharing/` is now slim and contains only Hostsharing-path utilities: `ParseDomain`, `ParseUser`, `DomainByExecutable`, `FcgiLogFile`, plus the `ErrShortPath` / `ErrNoPAC` / `ErrNoUser` sentinels.
+
+  Migration guide:
+  - `hostsharing.Base64StringToBytesHookFunc` → `core.Base64StringToBytesHookFunc`
+  - `hostsharing.ServiceName` → `core.ServiceName`
+  - `hostsharing.IsFCGI` → `core.IsFCGI`
+  - `hostsharing.ListenAndServe` → `server.ListenAndServe`
+  - `hostsharing.RequestLogger` → `server.RequestLogger`
+  - `hostsharing.LogInfo` / `LogWarn` / `LogError` → `server.LogInfo` / `server.LogWarn` / `server.LogError`
+  - `hostsharing.ReadInConfig` → `server.ReadInConfig`
+  - Removed: `hostsharing.ErrNoFcgiEnvironment` (was unused).
+
+- **Added**: `database.DataDirResolver` interface and `database.DataDirResolverFunc` variable. The default resolver is the Hostsharing-aware one (`hostsharing.DomainByExecutable`); VM/Root apps override `DataDirResolverFunc` before calling `database.Open` to point the default SQLite DSN at a non-Hostsharing data directory. This makes `database/` environment-aware without forcing every consumer to import `hostsharing/`.
+
+- **Added**: `hostsharing.FcgiLogFile(exePath string) (string, error)` — exported wrapper used by `server.RequestLogger`. Replaces the unexported `hostsharing.fcgiLogFile(fn func() (string, error))` form, which is kept only for the existing white-box tests.
+
 - **Breaking Change**: `hostsharing.ReadInConfig()` signature changed - removed `app_name` parameter, now automatically determined via `ServiceName()`.
 - **Breaking Change**: `user.PAC()` and `user.User()` now return `(string, error)` and report `ErrNoPAC` / `ErrNoUser` when the parsed path lacks the corresponding segment. Callers must handle the error.
 - **Breaking Change**: Removed deprecated `DomainByWorkingDir()` function.
