@@ -13,12 +13,12 @@ var getenv = os.Getenv
 // can stub it. It is a var (not a const) so test code can swap it.
 var executablePath = os.Executable
 
-// xdgConfigHome returns the XDG config home directory: $XDG_CONFIG_HOME if
+// XdgConfigHome returns the XDG config home directory: $XDG_CONFIG_HOME if
 // set, otherwise $HOME/.config. Returns "" when neither variable is set.
 //
 // The helper is env-only and has no Hostsharing-specific assumption, so it
 // lives in core rather than hostsharing.
-func xdgConfigHome() string {
+func XdgConfigHome() string {
 	if dir := getenv("XDG_CONFIG_HOME"); dir != "" {
 		return dir
 	}
@@ -27,3 +27,7 @@ func xdgConfigHome() string {
 	}
 	return ""
 }
+
+// xdgConfigHome is kept as an unexported alias so existing tests in core can
+// continue to reference the private symbol without churn.
+func xdgConfigHome() string { return XdgConfigHome() }

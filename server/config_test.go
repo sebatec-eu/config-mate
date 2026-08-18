@@ -1,4 +1,4 @@
-package hostsharing
+package server
 
 import (
 	"os"
@@ -12,6 +12,10 @@ import (
 // viper does not honour mapstructure `default:"..."` struct tags (it leaves
 // DecoderConfig.Metadata as nil), so a missing config leaves Foo at its
 // zero value — that is the "defaults preserved" behaviour under test.
+//
+// Moved from hostsharing/hostsharing_test.go — ReadInConfig is moving to
+// server/ because it's a server-boot config loader, not a Hostsharing path
+// utility.
 func TestReadInConfig(t *testing.T) {
 	const appName = "myapp"
 	const baseYAML = "foo: from-config\n"
@@ -171,67 +175,5 @@ func TestReadInConfig_LegacyHomeDot(t *testing.T) {
 	}
 	if cfg.Foo != "from-config" {
 		t.Fatalf("Foo: want %q, got %q", "from-config", cfg.Foo)
-	}
-}
-
-// TestListenAndServeAddr is a table-driven test of the listenAddr() pure
-// function used by [ListenAndServe]'s HTTP branch.
-//
-// Each subtest explicitly sets ADDR and PORT with t.Setenv (never iterating
-// over a map) so the precedence rule is unambiguous. t.Setenv also seeds
-// both vars to "" where unset, so the case does not depend on the outer
-// process environment.
-func TestListenAndServeAddr(t *testing.T) {
-	tests := []struct {
-		name string
-		addr string
-		port string
-		want string
-	}{
-		{
-			name: "default: both unset",
-			want: ":" + defaultHttpPort,
-		},
-		{
-			name: "PORT only",
-			port: "8080",
-			want: ":8080",
-		},
-		{
-			name: "ADDR only",
-			addr: "127.0.0.1:9000",
-			want: "127.0.0.1:9000",
-		},
-		{
-			name: "ADDR overrides PORT",
-			addr: "127.0.0.1:9000",
-			port: "8080",
-			want: "127.0.0.1:9000",
-		},
-		{
-			name: "ADDR with explicit IPv4 wildcard",
-			addr: "0.0.0.0:9090",
-			want: "0.0.0.0:9090",
-		},
-		{
-			name: "empty strings fall through to default",
-			addr: "",
-			port: "",
-			want: ":" + defaultHttpPort,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// Explicit t.Setenv per var — never iterate a map. Sets to ""
-			// when the case does not specify a value, so the test is
-			// independent of the outer process env.
-			t.Setenv("ADDR", tc.addr)
-			t.Setenv("PORT", tc.port)
-
-			if got := listenAddr(); got != tc.want {
-				t.Errorf("listenAddr() = %q, want %q", got, tc.want)
-			}
-		})
 	}
 }
