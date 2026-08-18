@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.11.0 - 2026-08-18
+
 - **Updated**: `ReadInConfig` now follows the XDG Base Directory specification: searches `$XDG_CONFIG_HOME/<app>` (or `$HOME/.config/<app>`), then `$HOME/.<app>`, alongside the existing domain path. Missing config files are no longer fatal — `ReadInConfig` returns `nil` and leaves the value at its zero state instead of erroring. Switched to a per-call `viper.New()` instance to avoid state leaking across tests.
 - **Added**: `ListenAndServe` HTTP branch now honors `ADDR` and `PORT` env vars (precedence: `ADDR` → `PORT` → default `:9000`). `ADDR` accepts any `host:port` string passed through to `http.ListenAndServe`; `PORT` is a bare port number.
 
