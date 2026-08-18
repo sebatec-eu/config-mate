@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Improved**: `hostsharing.ReadInConfig()` now searches XDG-conformant paths (`$XDG_CONFIG_HOME/<app>` falling back to `$HOME/.config/<app>`) and tolerates a missing config file — returns nil so struct zero values and any `viper.SetDefault` calls remain in effect. Uses a local `viper.New()` instance to avoid global-state leakage between calls.
 - **Breaking Change**: `hostsharing.ReadInConfig()` signature changed - removed `app_name` parameter, now automatically determined via `ServiceName()`.
 - **Breaking Change**: `user.PAC()` and `user.User()` now return `(string, error)` and report `ErrNoPAC` / `ErrNoUser` when the parsed path lacks the corresponding segment. Callers must handle the error.
 - **Breaking Change**: Removed deprecated `DomainByWorkingDir()` function.
