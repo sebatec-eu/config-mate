@@ -38,7 +38,10 @@ var ErrNoFcgiEnvironment = fmt.Errorf("no fcgi environment dedected")
 //
 // It first checks for the FCGI_LISTEN environment variable. If set, it uses FastCGI with the specified address.
 // Otherwise, it falls back to the existing IsFCGI() logic.
-// If neither condition is met, it starts a standard HTTP server on the default port.
+// If neither condition is met, it starts a standard HTTP server bound to the
+// address resolved by [listenAddr]: ADDR (e.g. "127.0.0.1:9000") takes
+// precedence; otherwise PORT (a bare port number, e.g. "8080") is used;
+// otherwise the default port (":9000") is used.
 //
 // Example:
 //
@@ -85,11 +88,22 @@ func ListenAndServe(handler http.Handler) error {
 		return nil
 	}
 
-	log.Printf("Server listening on port %s\n", defaultHttpPort)
-	if err := http.ListenAndServe(":"+defaultHttpPort, handler); err != nil {
-		return fmt.Errorf("http.ListenAndServe failed on port %s: %v", defaultHttpPort, err)
+	addr := listenAddr()
+	log.Printf("Server listening on %s\n", addr)
+	if err := http.ListenAndServe(addr, handler); err != nil {
+		return fmt.Errorf("http.ListenAndServe failed on %s: %v", addr, err)
 	}
 	return nil
+}
+
+func listenAddr() string {
+	if addr := os.Getenv("ADDR"); addr != "" {
+		return addr
+	}
+	if port := os.Getenv("PORT"); port != "" {
+		return ":" + port
+	}
+	return ":" + defaultHttpPort
 }
 
 // Base64StringToBytesHookFunc returns a mapstructure decode hook that turns
