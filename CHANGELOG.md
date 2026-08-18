@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Updated**: `ReadInConfig` now follows the XDG Base Directory specification: searches `$XDG_CONFIG_HOME/<app>` (or `$HOME/.config/<app>`), then `$HOME/.<app>`, alongside the existing domain path. Missing config files are no longer fatal — `ReadInConfig` returns `nil` and leaves the value at its zero state instead of erroring. Switched to a per-call `viper.New()` instance to avoid state leaking across tests.
+
 ## v1.10.0 - 2026-07-16
 
 - **Added**: `Base64StringToBytesHookFunc(encs ...*base64.Encoding)`, exported for callers that need a custom base64 alphabet or a fallback chain across multiple alphabets. Padding rules are set per encoding via the `*base64.Encoding` argument (e.g. `RawStdEncoding`, `RawURLEncoding`, or `Encoding.WithPadding`).
