@@ -1,4 +1,4 @@
-package hostsharing
+package core
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+// serviceName is the internal helper. TestServiceName exercises both branches:
+// env-var precedence and executable fallback (with .fcgi strip).
 func TestServiceName(t *testing.T) {
 	envTests := []struct {
 		envValue string
@@ -17,9 +19,7 @@ func TestServiceName(t *testing.T) {
 
 	for _, tc := range envTests {
 		t.Run("env_"+tc.envValue, func(t *testing.T) {
-			oldEnv := os.Getenv(serviceNameEnvVar)
 			t.Setenv(serviceNameEnvVar, tc.envValue)
-			defer os.Setenv(serviceNameEnvVar, oldEnv)
 
 			name, err := serviceName(func() (string, error) {
 				return "/dummy/path", nil
@@ -70,4 +70,35 @@ func TestServiceName(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestXdgConfigHome pins the XDG precedence: XDG_CONFIG_HOME → $HOME/.config → "".
+// This is env-only — no Hostsharing layout involved — so it belongs in core.
+func TestXdgConfigHome(t *testing.T) {
+	t.Run("XDG_CONFIG_HOME wins when set", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", "/custom/xdg")
+		t.Setenv("HOME", "/home/me")
+
+		if got := xdgConfigHome(); got != "/custom/xdg" {
+			t.Errorf("got %q, want %q", got, "/custom/xdg")
+		}
+	})
+
+	t.Run("falls back to $HOME/.config when XDG_CONFIG_HOME is empty", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("HOME", "/home/me")
+
+		if got := xdgConfigHome(); got != "/home/me/.config" {
+			t.Errorf("got %q, want %q", got, "/home/me/.config")
+		}
+	})
+
+	t.Run("returns empty string when neither env var is set", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("HOME", "")
+
+		if got := xdgConfigHome(); got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
 }

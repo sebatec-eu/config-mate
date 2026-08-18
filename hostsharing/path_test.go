@@ -422,22 +422,7 @@ func TestDomainDirsDev(t *testing.T) {
 	}
 }
 
-func TestIsFCGI(t *testing.T) {
-	for _, tc := range []struct {
-		path     string
-		expected bool
-	}{
-		{"/", false},
-		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/api.fcgi", true},
-		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/foobar.fcgi", true},
-		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi/foobar.fcgi", true},
-		{"/home/pacs/xyz00/users/example/doms/example.com/cgi/foobar.fcgi", false},
-	} {
-		if got := isFCGI(func() (string, error) { return tc.path, nil }); got != tc.expected {
-			t.Errorf("Expected %v for %v but got %v", tc.expected, tc.path, got)
-		}
-	}
-}
+// TestIsFCGI moved to core/fcgi_test.go — IsFCGI is environment-agnostic.
 
 func TestDomainByExecutable(t *testing.T) {
 	noEnv := func(string) string { return "" }

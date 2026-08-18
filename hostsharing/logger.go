@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httplog/v3"
+	"github.com/sebatec-eu/config-mate/v2/core"
 )
 
 func fcgiLogFile(fn func() (string, error)) (string, error) {
@@ -32,7 +33,7 @@ func fcgiLogFile(fn func() (string, error)) (string, error) {
 }
 
 func logWriter() io.Writer {
-	if IsFCGI() {
+	if core.IsFCGI() {
 		logFile, err := fcgiLogFile(os.Executable)
 		if err != nil || logFile == "" {
 			return os.Stdout
@@ -51,7 +52,7 @@ func logWriter() io.Writer {
 // and logs request/response details including optional requestID from the request context.
 // Certain static asset types (css, js, fonts, etc.) are excluded from logging.
 func RequestLogger() func(next http.Handler) http.Handler {
-	serviceName, err := ServiceName()
+	serviceName, err := core.ServiceName()
 	if err != nil {
 		panic(fmt.Errorf("cannot detect environemnt: %e", err))
 	}

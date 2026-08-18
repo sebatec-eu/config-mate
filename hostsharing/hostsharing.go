@@ -22,9 +22,9 @@ import (
 	"net/http/fcgi"
 	"os"
 	"path/filepath"
-	"reflect"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/sebatec-eu/config-mate/v2/core"
 	"github.com/spf13/viper"
 )
 
@@ -81,7 +81,7 @@ func ListenAndServe(handler http.Handler) error {
 		return nil
 	}
 
-	if IsFCGI() {
+	if core.IsFCGI() {
 		if err := fcgi.Serve(nil, handler); err != nil {
 			return fmt.Errorf("fcgi.Serve failed: %v", err)
 		}
@@ -106,27 +106,8 @@ func listenAddr() string {
 	return ":" + defaultHttpPort
 }
 
-// Base64StringToBytesHookFunc returns a mapstructure decode hook that turns
-// string fields into []byte by trying each encoding in order. The first
-// encoding that decodes the string wins; if none decode it, the string is
-// returned unchanged. Pass one encoding to accept a single alphabet, several
-// to accept a fallback chain (for example StdEncoding then URLEncoding).
-// Padding rules are set on each encoding — use RawStdEncoding, RawURLEncoding,
-// or Encoding.WithPadding for unpadded or custom-padded input.
-func Base64StringToBytesHookFunc(encs ...*base64.Encoding) mapstructure.DecodeHookFuncType {
-	return func(f, t reflect.Type, data interface{}) (interface{}, error) {
-		if f.Kind() != reflect.String || t != reflect.TypeOf([]byte{}) {
-			return data, nil
-		}
-		s, _ := data.(string)
-		for _, enc := range encs {
-			if result, err := enc.DecodeString(s); err == nil {
-				return result, nil
-			}
-		}
-		return data, nil
-	}
-}
+// Base64StringToBytesHookFunc moved to core.Base64StringToBytesHookFunc —
+// the hook is environment-agnostic.
 
 // ReadInConfig reads and unmarshals configuration from a file into rawVal.
 // The application name comes from [ServiceName] (SERVICE_NAME env, else executable).
@@ -143,10 +124,12 @@ func Base64StringToBytesHookFunc(encs ...*base64.Encoding) mapstructure.DecodeHo
 //  4. $HOME/.<app> (legacy).
 //
 // rawVal must be a pointer. fs optionally adds mapstructure decode hooks; when
-// empty, defaults are: Base64StringToBytesHookFunc(Std, URL),
+// empty, defaults are: core.Base64StringToBytesHookFunc(Std, URL),
 // mapstructure.StringToTimeDurationHookFunc, mapstructure.StringToSliceHookFunc(",").
+//
+// ReadInConfig will move to the server/ package in the next slice.
 func ReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
-	appName, err := ServiceName()
+	appName, err := core.ServiceName()
 	if err != nil {
 		return err
 	}
@@ -179,7 +162,7 @@ func ReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
 
 	if len(fs) <= 0 {
 		fs = append(fs,
-			Base64StringToBytesHookFunc(base64.StdEncoding, base64.URLEncoding),
+			core.Base64StringToBytesHookFunc(base64.StdEncoding, base64.URLEncoding),
 			mapstructure.StringToTimeDurationHookFunc(),
 			mapstructure.StringToSliceHookFunc(","),
 		)
@@ -192,6 +175,9 @@ func ReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
 	return nil
 }
 
+// xdgConfigHome and ServiceName moved to core — they are env-only helpers.
+// ReadInConfig still references xdgConfigHome as a thin local wrapper until
+// the function moves to the server/ package (next slice).
 func xdgConfigHome() string {
 	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
 		return dir

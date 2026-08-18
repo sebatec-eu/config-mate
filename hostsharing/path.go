@@ -232,18 +232,3 @@ func domainByExecutable(envLookup func(string) string, getExecutable func() (str
 func DomainByExecutable() (*domain, error) {
 	return domainByExecutable(os.Getenv, os.Executable)
 }
-
-func isFCGI(fn func() (string, error)) bool {
-	r, err := fn()
-	if err != nil {
-		return false
-	}
-	dir := filepath.Base(filepath.Dir(r))
-	return strings.HasPrefix(dir, "fastcgi")
-}
-
-// IsFCGI checks if the current executable is running in a FastCGI environment
-// by examining the executable path for a "fastcgi" directory component.
-func IsFCGI() bool {
-	return isFCGI(os.Executable)
-}

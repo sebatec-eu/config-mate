@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/glebarez/sqlite"
+	"github.com/sebatec-eu/config-mate/v2/core"
 	"github.com/sebatec-eu/config-mate/v2/hostsharing"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -53,7 +54,7 @@ func getDataDirResolver() dataDirResolver {
 	return dom
 }
 
-var serviceNameFunc = hostsharing.ServiceName
+var serviceNameFunc = core.ServiceName
 
 func setSQLiteDsnDefault(c *Config, dataDirResolver dataDirResolver) {
 	if c.Dsn != "" {
