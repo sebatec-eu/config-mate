@@ -1,61 +1,88 @@
 # config-mate
 
-Scaffolding for simple Go applications that need to run in three environments
-without forking the code:
+config-mate lets you write Go apps that run unchanged on Hostsharing,
+your own server, or locally. It handles the differences between FastCGI
+(Fast Common Gateway Interface) and HTTP, config file locations, and logging—
+so you don’t have to.
 
-- **Hostsharing** — Apache + FastCGI behind `/fastcgi-bin/` aliased to
-  `~/doms/<host>/fastcgi/`.
-- **VM/Root server** — systemd-style deployment behind a Caddy reverse proxy
-  (HTTP, possibly FastCGI via `transport fastcgi`).
-- **Local development** — `go run`, plain HTTP or Caddy + `FCGI_LISTEN`.
+Use config-mate if you deploy Go apps to multiple environments and want one
+codebase. We assume you have at least one production environment (Hostsharing
+and/or VM/Root) and one development environment.
 
-## Package layout
+## How-to guides
 
-The module is split into three packages so each app type imports only what it
-needs:
+### Deploy to Hostsharing
 
-| Package        | Role                                                                            | Depends on            |
-| -------------- | ------------------------------------------------------------------------------- | --------------------- |
-| `core/`        | Environment-agnostic helpers                                                    | (nothing)             |
-| `server/`      | Environment-aware server glue                                                   | `core`, `hostsharing` |
-| `hostsharing/` | Hostsharing-path utilities (`ParseDomain`, `DomainByExecutable`, `FcgiLogFile`) | (nothing)             |
-| `database/`    | SQLite/MySQL with a `DataDirResolver` seam                                      | `core`, `hostsharing` |
-| `ui/`          | Static / template handler, compression                                          | (nothing)             |
+Hostsharing runs apps via Apache and FastCGI.
 
-### Import profile by app type
+**Steps**
 
-| App type                 | Imports                                           |
-| ------------------------ | ------------------------------------------------- |
-| 1. Hostsharing only      | `core`, `server`, `hostsharing`, `database`, `ui` |
-| 2. Hostsharing + VM/Root | `core`, `server`, `hostsharing`, `database`, `ui` |
-| 3. VM/Root only          | `core`, `server`, `database`, `ui`                |
+1. Upload your binary to `~/doms/<domain>/fastcgi-ssl/`
+2. Ensure it has execute permissions
 
-Anything **not** in `hostsharing/` works without a Hostsharing environment.
-That means a VM-only app can compile and run without ever importing
-`hostsharing/`. The `database.DataDirResolverFunc` seam makes that explicit:
-override it before calling `database.Open` to point SQLite at a VM-style data
-directory.
+config-mate detects FastCGI, loads config from your domain directory, and
+writes logs to your domain log directory.
 
-## Environment-detection rules
+### Deploy to a Root Server
 
-- `core.IsFCGI()` returns true when the executable's parent directory's base
-  name starts with `fastcgi`. This is the convention used by Hostsharing's
-  Apache alias `/fastcgi-bin/` and by any reverse proxy that spawns the binary
-  from a `fastcgi/` parent.
-- `server.ListenAndServe` precedence: `FCGI_LISTEN` env var → `core.IsFCGI()`
-  → plain HTTP. The env-var path is what makes local Caddy dev work without
-  faking the Hostsharing tree.
-- `core.ServiceName()` precedence: `SERVICE_NAME` env var → executable
-  basename with optional `.fcgi` suffix stripped.
-- `server.ReadInConfig` precedence: `./<app>.conf` in cwd → per-domain
-  config dir (Hostsharing) → `$XDG_CONFIG_HOME/<app>` →
-  `$HOME/.config/<app>` → `$HOME/.<app>`.
+Run your app on a VM or bare metal server with HTTP.
+
+**Steps**
+
+1. Set `ADDR` or `PORT` environment variable
+2. Run your binary
+
+config-mate runs in HTTP mode, loads config from XDG directories
+(standard Linux config locations), and logs to stdout.
+
+**Environment variables**
+
+- `ADDR`: Listen address (e.g., `:8080`)
+- `PORT`: Listen port (e.g., `8080`)
+
+### Support Both Hostsharing and Root Server
+
+Maintain one codebase for both platforms.
+
+**Steps**
+
+1. Use the same binary for both platforms
+
+config-mate auto-detects the environment at startup and adapts its behavior.
+
+### Develop with Vite Proxy
+
+Run a Go backend with a Vite frontend in development.
+
+**Steps**
+
+1. Set `PORT` to match your Vite proxy target
+
+Works in HTTP mode with local config.
+
+### Use with Caddy or Apache
+
+Run behind a reverse proxy.
+
+**Steps**
+
+1. For FastCGI: Set `FCGI_LISTEN`
+2. For HTTP: Set `ADDR` or `PORT`
+
+Adapts to your proxy mode.
 
 ## Testing
 
+Run all tests:
+
 ```sh
-go test ./...
+make test
 ```
 
-All packages are tested with table-driven subtests. The Hostsharing layout
-itself is documented at <https://www.hostsharing.net/doc/managed-operations-platform/>.
+## See also
+
+- [Hostsharing documentation](https://www.hostsharing.net/doc/managed-operations-platform/)
+  for directory structure details
+- [pkg.go.dev/github.com/sebatec-eu/config-mate](https://pkg.go.dev/github.com/sebatec-eu/config-mate)
+  for API reference
+- `go doc` for package documentation
