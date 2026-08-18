@@ -14,12 +14,14 @@ package hostsharing
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"net/http/fcgi"
 	"os"
+	"path/filepath"
 	"reflect"
 
 	"github.com/mitchellh/mapstructure"
@@ -112,61 +114,57 @@ func Base64StringToBytesHookFunc(encs ...*base64.Encoding) mapstructure.DecodeHo
 	}
 }
 
-// ReadInConfig reads and unmarshals configuration from a file into the provided value.
-// It attempts to load configuration from a local file first, then falls back to
-// searching in domain-specific and home directories. The function supports custom
-// decode hooks for type conversion during unmarshaling.
+// ReadInConfig reads and unmarshals configuration from a file into rawVal.
+// The application name comes from app_name, falling back to [ServiceName]
+// (SERVICE_NAME env, else executable) when empty.
 //
-// Parameters:
-//   - rawVal: A pointer to a struct where the unmarshaled configuration will be stored.
-//   - app_name: The application name used to construct config file paths. If empty,
-//     it will be determined automatically via ServiceName(). Config files are expected
-//     to be named as ".<app_name>.conf".
-//   - fs: Optional variadic mapstructure.DecodeHookFunc functions for custom type
-//     conversion during unmarshaling. If none are provided, default hooks are applied:
-//     Base64StringToBytesHookFunc(base64.StdEncoding, base64.URLEncoding),
-//     StringToTimeDurationHookFunc(), and StringToSliceHookFunc with "," delimiter.
+// A missing config file is not an error: ReadInConfig returns nil and rawVal
+// retains its zero values plus any viper.SetDefault calls made before this
+// function (mapstructure `default:"..."` struct tags are NOT applied by viper).
 //
-// Returns:
-//   - error: Returns nil on success, or an error describing what went wrong during
-//     config file reading or unmarshaling.
+// Search order:
+//  1. .<app>.conf in the current working directory (loaded via ReadConfig).
+//  2. <domain.ConfigDir>/<app> — e.g. /home/pacs/.../doms/example.com/etc/api
+//     (resolved via [DomainByExecutable]; CONFIG_BASE_PATH is honored for local dev).
+//  3. $XDG_CONFIG_HOME/<app>, falling back to $HOME/.config/<app>.
+//  4. $HOME/.<app> (legacy).
 //
-// The function searches for config in the following order:
-//  1. Local file: .<app_name>.conf
-//  2. Domain-specific directory: /home/pacs/xyz00/users/foobar/doms/example.com/etc/{app_name}/
-//    (user must create config files under this directory, e.g. /home/pacs/xyz00/users/foobar/doms/example.com/etc/api/config)
-//  3. Home directory: $HOME/.<app_name>/ (user must create config files under this directory)
-//
-// Domain resolution uses [DomainByExecutable], which first honors the
-// CONFIG_BASE_PATH environment variable and falls back to the running
-// executable's directory. Setting CONFIG_BASE_PATH lets local development
-// simulate a Hostsharing layout without a real /home/pacs tree.
+// rawVal must be a pointer. fs optionally adds mapstructure decode hooks; when
+// empty, defaults are: Base64StringToBytesHookFunc(Std, URL),
+// mapstructure.StringToTimeDurationHookFunc, mapstructure.StringToSliceHookFunc(",").
 func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc) error {
 	if app_name == "" {
-		a, err := ServiceName()
+		name, err := ServiceName()
 		if err != nil {
 			return err
 		}
-		app_name = a
+		app_name = name
 	}
 
-	viper.SetConfigType("yaml")
-	cfg, err := os.ReadFile(fmt.Sprintf(".%s.conf", app_name))
-	if err != nil {
-		domain, err := DomainByExecutable()
-		if err != nil && err != ErrShortPath {
-			panic(err)
-		}
-		if domain != nil {
-			viper.AddConfigPath(fmt.Sprintf("%s/%s", domain.ConfigDir(), app_name))
-		}
-		viper.AddConfigPath(fmt.Sprintf("$HOME/.%s", app_name))
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.SetConfigName(app_name)
 
-		if err := viper.ReadInConfig(); err != nil {
-			return fmt.Errorf("fatal error config file: %w", err)
+	if cfg, err := os.ReadFile("." + app_name + ".conf"); err == nil {
+		if err := v.ReadConfig(bytes.NewBuffer(cfg)); err != nil {
+			return fmt.Errorf("cannot read local config: %w", err)
 		}
 	} else {
-		viper.ReadConfig(bytes.NewBuffer(cfg))
+		if domain, err := DomainByExecutable(); err != nil && err != ErrShortPath {
+			panic(err)
+		} else if domain != nil {
+			v.AddConfigPath(domain.ConfigDir())
+		}
+		if xdg := xdgConfigHome(); xdg != "" {
+			v.AddConfigPath(xdg)
+		}
+		if home := os.Getenv("HOME"); home != "" {
+			v.AddConfigPath(filepath.Join(home, "."+app_name))
+		}
+
+		if err := v.ReadInConfig(); err != nil && !errors.As(err, &viper.ConfigFileNotFoundError{}) {
+			return fmt.Errorf("cannot read config: %w", err)
+		}
 	}
 
 	if len(fs) <= 0 {
@@ -177,9 +175,19 @@ func ReadInConfig(rawVal any, app_name string, fs ...mapstructure.DecodeHookFunc
 		)
 	}
 
-	if err := viper.Unmarshal(&rawVal, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(fs...))); err != nil {
+	if err := v.Unmarshal(&rawVal, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(fs...))); err != nil {
 		return fmt.Errorf("cannot unmarshal config: %v", err)
 	}
 
 	return nil
+}
+
+func xdgConfigHome() string {
+	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
+		return dir
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		return filepath.Join(home, ".config")
+	}
+	return ""
 }
