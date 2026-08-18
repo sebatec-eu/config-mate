@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.0 - 2026-08-18
 
 - **Breaking Change**: package layout reorganised. The single `hostsharing` package has been split into three focused packages:
   - `core/` holds environment-agnostic helpers: `Base64StringToBytesHookFunc`, `ServiceName`, `IsFCGI`, `XdgConfigHome`. Nothing in `core/` imports the hostsharing package.
