@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- **Improved**: `hostsharing.ReadInConfig()` now searches XDG-conformant paths (`$XDG_CONFIG_HOME/<app>` falling back to `$HOME/.config/<app>`) and tolerates a missing config file — returns nil so struct zero values and any `viper.SetDefault` calls remain in effect. Uses a local `viper.New()` instance to avoid global-state leakage between calls.
 - **Breaking Change**: `hostsharing.ReadInConfig()` signature changed - removed `app_name` parameter, now automatically determined via `ServiceName()`.
 - **Breaking Change**: `user.PAC()` and `user.User()` now return `(string, error)` and report `ErrNoPAC` / `ErrNoUser` when the parsed path lacks the corresponding segment. Callers must handle the error.
 - **Breaking Change**: Removed deprecated `DomainByWorkingDir()` function.
@@ -10,6 +9,11 @@
 - **Added**: `ErrNoPAC` and `ErrNoUser` sentinel errors.
 - **Improved**: `DomainByExecutable()` now resolves non-Hostsharing paths via a `doms/{host}` anchor scan, so dev setups like `CONFIG_BASE_PATH=/srv/doms/example.com/fastcgi-ssl/api.fcgi` produce a `Domain` without a PAC or User.
 - **Improved**: `domain.DomsDir()`, `ConfigDir()`, `LogDir()`, and `DataDir()` return meaningful dev paths (anchored at the parsed `doms/{host}` segment) when PAC is absent, instead of failing.
+
+## v1.11.0 - 2026-08-18
+
+- **Updated**: `ReadInConfig` now follows the XDG Base Directory specification: searches `$XDG_CONFIG_HOME/<app>` (or `$HOME/.config/<app>`), then `$HOME/.<app>`, alongside the existing domain path. Missing config files are no longer fatal — `ReadInConfig` returns `nil` and leaves the value at its zero state instead of erroring. Switched to a per-call `viper.New()` instance to avoid state leaking across tests.
+- **Added**: `ListenAndServe` HTTP branch now honors `ADDR` and `PORT` env vars (precedence: `ADDR` → `PORT` → default `:9000`). `ADDR` accepts any `host:port` string passed through to `http.ListenAndServe`; `PORT` is a bare port number.
 
 ## v1.10.0 - 2026-07-16
 
