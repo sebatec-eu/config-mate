@@ -18,8 +18,8 @@ import (
 // running under a Hostsharing-style layout) — callers should fall back to
 // stdout in that case.
 //
-// Exported so server/RequestLogger can use it without forcing a white-box
-// import seam.
+// Used by server.RequestLogger. Test seam lives in the test file via direct
+// argument injection (no production wrapper needed — DRY).
 func FcgiLogFile(exePath string) (string, error) {
 	domain, err := ParseDomain(exePath)
 	if err != nil {
@@ -30,15 +30,4 @@ func FcgiLogFile(exePath string) (string, error) {
 	}
 	b := strings.TrimSuffix(filepath.Base(exePath), ".fcgi")
 	return fmt.Sprintf("%s/%s.log", domain.LogDir(), b), nil
-}
-
-// fcgiLogFile is the unexported helper used by hostsharing's own tests.
-// It is the original form preserved for tests; production code should call
-// FcgiLogFile(exePath) directly.
-func fcgiLogFile(fn func() (string, error)) (string, error) {
-	exePath, err := fn()
-	if err != nil {
-		return "", nil
-	}
-	return FcgiLogFile(exePath)
 }

@@ -2,6 +2,10 @@ package hostsharing
 
 import "testing"
 
+// TestFcgiLogFile pins the FastCGI log file path contract for the exported
+// FcgiLogFile helper used by server.RequestLogger. The unexported
+// fcgiLogFile wrapper was removed (DRY): tests now call the exported form
+// directly.
 func TestFcgiLogFile(t *testing.T) {
 	for _, tc := range []struct {
 		path    string
@@ -11,12 +15,19 @@ func TestFcgiLogFile(t *testing.T) {
 		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi-ssl/foobar.fcgi", "/home/pacs/xyz00/users/example/doms/example.com/var/foobar.log"},
 		{"/home/pacs/xyz00/users/example/doms/example.com/fastcgi/foobar.fcgi", "/home/pacs/xyz00/users/example/doms/example.com/var/foobar.log"},
 	} {
-		if got, _ := fcgiLogFile(func() (string, error) { return tc.path, nil }); got != tc.logFile {
+		got, err := FcgiLogFile(tc.path)
+		if err != nil {
+			t.Errorf("Expected no error for %v but got: %v", tc.path, err)
+		}
+		if got != tc.logFile {
 			t.Errorf("Expected %v for %v but got %v", tc.logFile, tc.path, got)
 		}
 	}
 }
 
+// TestFcgiLogFileShallowPathFallback: when the path is too shallow to derive
+// a Hostsharing domain, FcgiLogFile must return "" with a nil error so
+// callers can fall back to stdout.
 func TestFcgiLogFileShallowPathFallback(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -28,7 +39,7 @@ func TestFcgiLogFileShallowPathFallback(t *testing.T) {
 		{"executable in users dir (too shallow)", "/home/pacs/xyz00/users/api.fcgi"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := fcgiLogFile(func() (string, error) { return tc.path, nil })
+			got, err := FcgiLogFile(tc.path)
 			if err != nil {
 				t.Errorf("Expected nil error but got: %v", err)
 			}

@@ -14,21 +14,21 @@ without forking the code:
 The module is split into three packages so each app type imports only what it
 needs:
 
-| Package       | Role                                                                  | Depends on            |
-|---------------|-----------------------------------------------------------------------|-----------------------|
-| `core/`       | Environment-agnostic helpers                                          | (nothing)             |
-| `server/`     | Environment-aware server glue                                         | `core`, `hostsharing` |
-| `hostsharing/`| Hostsharing-path utilities (`ParseDomain`, `DomainByExecutable`, `FcgiLogFile`) | (nothing)      |
-| `database/`   | SQLite/MySQL with a `DataDirResolver` seam                            | `core`, `hostsharing` |
-| `ui/`         | Static / template handler, compression                                | (nothing)             |
+| Package        | Role                                                                            | Depends on            |
+| -------------- | ------------------------------------------------------------------------------- | --------------------- |
+| `core/`        | Environment-agnostic helpers                                                    | (nothing)             |
+| `server/`      | Environment-aware server glue                                                   | `core`, `hostsharing` |
+| `hostsharing/` | Hostsharing-path utilities (`ParseDomain`, `DomainByExecutable`, `FcgiLogFile`) | (nothing)             |
+| `database/`    | SQLite/MySQL with a `DataDirResolver` seam                                      | `core`, `hostsharing` |
+| `ui/`          | Static / template handler, compression                                          | (nothing)             |
 
 ### Import profile by app type
 
-| App type                                  | Imports                                                  |
-|-------------------------------------------|----------------------------------------------------------|
-| 1. Hostsharing only                       | `core`, `server`, `hostsharing`, `database`, `ui`        |
-| 2. Hostsharing + VM/Root                  | `core`, `server`, `hostsharing`, `database`, `ui`        |
-| 3. VM/Root only                           | `core`, `server`, `database`, `ui`                       |
+| App type                 | Imports                                           |
+| ------------------------ | ------------------------------------------------- |
+| 1. Hostsharing only      | `core`, `server`, `hostsharing`, `database`, `ui` |
+| 2. Hostsharing + VM/Root | `core`, `server`, `hostsharing`, `database`, `ui` |
+| 3. VM/Root only          | `core`, `server`, `database`, `ui`                |
 
 Anything **not** in `hostsharing/` works without a Hostsharing environment.
 That means a VM-only app can compile and run without ever importing
