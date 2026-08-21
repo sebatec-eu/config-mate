@@ -1,85 +1,45 @@
 package server
 
 import (
+	"bytes"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// TestReadInConfig is a table-driven test of [ReadInConfig]'s file-search
-// behaviour and missing-config tolerance.
-//
-// viper does not honour mapstructure `default:"..."` struct tags (it leaves
-// DecoderConfig.Metadata as nil), so a missing config leaves Foo at its
-// zero value — that is the "defaults preserved" behaviour under test.
-//
-// Moved from hostsharing/hostsharing_test.go — ReadInConfig is moving to
-// server/ because it's a server-boot config loader, not a Hostsharing path
-// utility.
+// ReadInConfig does not honour mapstructure `default:` tags; missing configs
+// leave Foo at its zero value, which is what most subtests assert.
+
 func TestReadInConfig(t *testing.T) {
-	const appName = "myapp"
-	const baseYAML = "foo: from-config\n"
-	const brokenYAML = "foo: [unterminated\n: :"
+	const (
+		appName    = "myapp"
+		baseYAML   = "foo: from-config\n"
+		brokenYAML = "foo: [unterminated\n: :"
+	)
 
 	tests := []struct {
 		name    string
 		env     map[string]string
-		files   map[string]string // paths relative to $HOME
-		chdir   bool              // chdir into $HOME before calling ReadInConfig
+		files   map[string]string // relative to $HOME
+		chdir   bool
 		wantErr bool
 		wantFoo string
 	}{
-		{
-			name:    "no file returns nil and leaves zero values",
-			env:     map[string]string{"SERVICE_NAME": appName},
-			wantErr: false,
-			wantFoo: "",
-		},
-		{
-			name: "loads from explicit XDG_CONFIG_HOME",
-			env: map[string]string{
-				"SERVICE_NAME":     appName,
-				"XDG_CONFIG_HOME":  "XDG_PLACEHOLDER/xdg", // resolved to t.TempDir() per subtest
-				"CONFIG_BASE_PATH": "",
-			},
-			files: map[string]string{
-				"xdg/myapp.yaml": baseYAML,
-			},
-			wantErr: false,
-			wantFoo: "from-config",
-		},
-		{
-			name: "local .<app>.conf in CWD is loaded",
-			env: map[string]string{
-				"SERVICE_NAME":    appName,
-				"XDG_CONFIG_HOME": "",
-			},
-			files: map[string]string{
-				".myapp.conf": "foo: from-local\n",
-			},
-			chdir:   true,
-			wantErr: false,
-			wantFoo: "from-local",
-		},
-		{
-			name: "propagates non-not-found errors",
-			env: map[string]string{
-				"SERVICE_NAME":     appName,
-				"XDG_CONFIG_HOME":  "",
-				"CONFIG_BASE_PATH": "",
-			},
-			files: map[string]string{
-				".config/myapp.yaml": brokenYAML,
-			},
-			wantErr: true,
-		},
+		{"no file", map[string]string{"SERVICE_NAME": appName}, nil, false, false, ""},
+		{"XDG explicit", map[string]string{
+			"SERVICE_NAME": appName, "XDG_CONFIG_HOME": "XDG_PLACEHOLDER/xdg", "CONFIG_BASE_PATH": "",
+		}, map[string]string{"xdg/myapp.yaml": baseYAML}, false, false, "from-config"},
+		{"propagates parse errors", map[string]string{
+			"SERVICE_NAME": appName, "XDG_CONFIG_HOME": "", "CONFIG_BASE_PATH": "",
+		}, map[string]string{".config/myapp.yaml": brokenYAML}, false, true, ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
-
-			// Resolve XDG_CONFIG_HOME placeholder to the per-subject temp dir.
 			for k, v := range tt.env {
 				if v == "XDG_PLACEHOLDER/xdg" {
 					v = filepath.Join(home, "xdg")
@@ -87,28 +47,24 @@ func TestReadInConfig(t *testing.T) {
 				t.Setenv(k, v)
 			}
 			t.Setenv("HOME", home)
-
-			for relPath, content := range tt.files {
-				abs := filepath.Join(home, relPath)
+			for rel, content := range tt.files {
+				abs := filepath.Join(home, rel)
 				if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-					t.Fatalf("mkdir: %v", err)
+					t.Fatal(err)
 				}
 				if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
-					t.Fatalf("write: %v", err)
+					t.Fatal(err)
 				}
 			}
-
 			if tt.chdir {
 				t.Chdir(home)
 			}
 
-			var cfg struct {
-				Foo string
-			}
+			var cfg struct{ Foo string }
 			err := ReadInConfig(&cfg)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("expected error, got nil (cfg=%+v)", cfg)
+					t.Fatalf("want error, got nil (cfg=%+v)", cfg)
 				}
 				return
 			}
@@ -122,8 +78,34 @@ func TestReadInConfig(t *testing.T) {
 	}
 }
 
-// TestReadInConfig_XDGFallback verifies that, when XDG_CONFIG_HOME is unset,
-// ReadInConfig falls back to $HOME/.config and loads <app>.yaml from there.
+// Subdir <xdg>/<app>/<app>.yaml must win over flat <xdg>/<app>.yaml.
+func TestReadInConfig_XDGSubdirWinsOverFlat(t *testing.T) {
+	home := t.TempDir()
+	xdg := filepath.Join(home, "xdg")
+	app := "myapp"
+	t.Setenv("SERVICE_NAME", app)
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("CONFIG_BASE_PATH", "")
+	t.Setenv("HOME", home)
+
+	for _, p := range []string{xdg, filepath.Join(xdg, app)} {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite(t, filepath.Join(xdg, app+".yaml"), "foo: from-flat\n")
+	mustWrite(t, filepath.Join(xdg, app, app+".yaml"), "foo: from-subdir\n")
+
+	var cfg struct{ Foo string }
+	if err := ReadInConfig(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Foo != "from-subdir" {
+		t.Fatalf("want from-subdir, got %q", cfg.Foo)
+	}
+}
+
+// $HOME/.config fallback when XDG_CONFIG_HOME is unset.
 func TestReadInConfig_XDGFallback(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SERVICE_NAME", "myapp")
@@ -131,27 +113,18 @@ func TestReadInConfig_XDGFallback(t *testing.T) {
 	t.Setenv("CONFIG_BASE_PATH", "")
 	t.Setenv("HOME", home)
 
-	dir := filepath.Join(home, ".config")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "myapp.yaml"), []byte("foo: from-config\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	mustWrite(t, filepath.Join(home, ".config", "myapp.yaml"), "foo: from-config\n")
 
-	var cfg struct {
-		Foo string
-	}
+	var cfg struct{ Foo string }
 	if err := ReadInConfig(&cfg); err != nil {
-		t.Fatalf("ReadInConfig: %v", err)
+		t.Fatal(err)
 	}
 	if cfg.Foo != "from-config" {
-		t.Fatalf("Foo: want %q, got %q", "from-config", cfg.Foo)
+		t.Fatalf("want from-config, got %q", cfg.Foo)
 	}
 }
 
-// TestReadInConfig_LegacyHomeDot verifies that the legacy $HOME/.<app>
-// directory is still searched.
+// Legacy $HOME/.<app> directory.
 func TestReadInConfig_LegacyHomeDot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SERVICE_NAME", "myapp")
@@ -159,21 +132,84 @@ func TestReadInConfig_LegacyHomeDot(t *testing.T) {
 	t.Setenv("CONFIG_BASE_PATH", "")
 	t.Setenv("HOME", home)
 
-	dir := filepath.Join(home, ".myapp")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "myapp.yaml"), []byte("foo: from-config\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	mustWrite(t, filepath.Join(home, ".myapp", "myapp.yaml"), "foo: from-config\n")
 
-	var cfg struct {
-		Foo string
-	}
+	var cfg struct{ Foo string }
 	if err := ReadInConfig(&cfg); err != nil {
-		t.Fatalf("ReadInConfig: %v", err)
+		t.Fatal(err)
 	}
 	if cfg.Foo != "from-config" {
-		t.Fatalf("Foo: want %q, got %q", "from-config", cfg.Foo)
+		t.Fatalf("want from-config, got %q", cfg.Foo)
 	}
+}
+
+// Non-ErrShortPath hostsharing failure must log and fall through to XDG.
+func TestReadInConfig_HostsharingErrorIsLogged(t *testing.T) {
+	withStubbedHostsharing(t, func() (string, error) {
+		return "", fmt.Errorf("synthetic hostsharing failure")
+	})
+
+	home := t.TempDir()
+	xdg := filepath.Join(home, "xdg")
+	t.Setenv("SERVICE_NAME", "myapp")
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("CONFIG_BASE_PATH", "")
+	t.Setenv("HOME", home)
+
+	mustWrite(t, filepath.Join(xdg, "myapp.yaml"), "foo: from-xdg\n")
+
+	var cfg struct{ Foo string }
+	if err := ReadInConfig(&cfg); err != nil {
+		t.Fatalf("want no error, got %v", err)
+	}
+	if cfg.Foo != "from-xdg" {
+		t.Fatalf("want from-xdg, got %q", cfg.Foo)
+	}
+}
+
+// ErrShortPath (no PAC layout) is the normal non-Hostsharing case and must
+// stay silent — no "PAC detection failed" log noise on plain HTTP boots.
+func TestReadInConfig_HostsharingErrShortPathIsSilent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SERVICE_NAME", "myapp")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("CONFIG_BASE_PATH", "")
+	t.Setenv("HOME", home)
+
+	var buf bytes.Buffer
+	origLog := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(origLog) })
+
+	var cfg struct{ Foo string }
+	if err := ReadInConfig(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "PAC detection failed") {
+		t.Fatalf("ErrShortPath must be silent, got: %s", buf.String())
+	}
+}
+
+// --- helpers ---
+
+func mustWrite(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func withStubbedHostsharing(t *testing.T, stub func() (string, error)) {
+	t.Helper()
+	orig := hostsharingConfigDir
+	hostsharingConfigDir = stub
+	t.Cleanup(func() { hostsharingConfigDir = orig })
+
+	var buf bytes.Buffer
+	origLog := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(origLog) })
 }

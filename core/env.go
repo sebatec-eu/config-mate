@@ -5,19 +5,14 @@ import (
 	"path/filepath"
 )
 
-// getenv is a package-local indirection over os.Getenv so tests can stub it
-// without touching the real environment.
-var getenv = os.Getenv
+// Test seams: package-level indirection over os calls.
+var (
+	getenv         = os.Getenv
+	executablePath = os.Executable
+)
 
-// executablePath is a package-local indirection over os.Executable so tests
-// can stub it. It is a var (not a const) so test code can swap it.
-var executablePath = os.Executable
-
-// XdgConfigHome returns the XDG config home directory: $XDG_CONFIG_HOME if
-// set, otherwise $HOME/.config. Returns "" when neither variable is set.
-//
-// The helper is env-only and has no Hostsharing-specific assumption, so it
-// lives in core rather than hostsharing.
+// XdgConfigHome returns $XDG_CONFIG_HOME, falling back to $HOME/.config,
+// or "" when neither is set.
 func XdgConfigHome() string {
 	if dir := getenv("XDG_CONFIG_HOME"); dir != "" {
 		return dir
@@ -28,6 +23,15 @@ func XdgConfigHome() string {
 	return ""
 }
 
-// xdgConfigHome is kept as an unexported alias so existing tests in core can
-// continue to reference the private symbol without churn.
+// XdgConfigDirs returns the viper search dirs in precedence order:
+// [<base>/<appName>, <base>], or nil when the base is empty.
+func XdgConfigDirs(appName string) []string {
+	base := XdgConfigHome()
+	if base == "" {
+		return nil
+	}
+	return []string{filepath.Join(base, appName), base}
+}
+
+// Unexported alias kept for legacy tests.
 func xdgConfigHome() string { return XdgConfigHome() }

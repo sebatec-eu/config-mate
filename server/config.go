@@ -1,10 +1,10 @@
 package server
 
 import (
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -14,25 +14,23 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ReadInConfig reads and unmarshals configuration from a file into rawVal.
-// The application name comes from [core.ServiceName] (SERVICE_NAME env, else
-// executable basename with optional .fcgi stripped).
-//
-// A missing config file is not an error: ReadInConfig returns nil and rawVal
-// retains its zero values plus any viper.SetDefault calls made before this
-// function (mapstructure `default:"..."` struct tags are NOT applied by viper).
+// ReadInConfig loads config into rawVal. App name: [core.ServiceName].
+// Missing file is not an error: rawVal keeps its zero values plus any prior
+// viper.SetDefault calls (viper ignores mapstructure `default:` tags).
 //
 // Search order:
-//  1. .<app>.conf in the current working directory (loaded via ReadConfig).
-//  2. <domain.ConfigDir>/<app> — e.g. /home/pacs/.../doms/example.com/etc/api
-//     (resolved via [hostsharing.DomainByExecutable]; CONFIG_BASE_PATH is
-//     honored for local dev).
-//  3. $XDG_CONFIG_HOME/<app>, falling back to $HOME/.config/<app>.
-//  4. $HOME/.<app> (legacy).
+//  1. <domain.ConfigDir>/<app> — PAC layout (CONFIG_BASE_PATH honored for dev).
+//  2. $XDG_CONFIG_HOME/<app>/<app>.{ext}, then $XDG_CONFIG_HOME/<app>.{ext}
+//     (or $HOME/.config fallback).
+//  3. $HOME/.<app> (legacy).
 //
-// rawVal must be a pointer. fs optionally adds mapstructure decode hooks; when
-// empty, defaults are: core.Base64StringToBytesHookFunc(Std, URL),
-// mapstructure.StringToTimeDurationHookFunc, mapstructure.StringToSliceHookFunc(",").
+// File basename must equal <appName>. Extensions: yaml, yml, json, toml,
+// properties, props, prop, hcl, tfvars, dotenv, env, ini; extensionless
+// <appName> also works because SetConfigType("yaml") is set.
+//
+// rawVal must be a pointer. fs adds mapstructure decode hooks; when empty,
+// defaults are Base64StringToBytesHookFunc(Std, URL), StringToTimeDurationHookFunc,
+// StringToSliceHookFunc(",").
 func ReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
 	appName, err := core.ServiceName()
 	if err != nil {
@@ -43,26 +41,20 @@ func ReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
 	v.SetConfigType("yaml")
 	v.SetConfigName(appName)
 
-	if cfg, err := os.ReadFile("." + appName + ".conf"); err == nil {
-		if err := v.ReadConfig(bytes.NewBuffer(cfg)); err != nil {
-			return fmt.Errorf("cannot read local config: %w", err)
-		}
-	} else {
-		if domain, err := hostsharing.DomainByExecutable(); err != nil && err != hostsharing.ErrShortPath {
-			panic(err)
-		} else if domain != nil {
-			v.AddConfigPath(domain.ConfigDir())
-		}
-		if xdg := core.XdgConfigHome(); xdg != "" {
-			v.AddConfigPath(xdg)
-		}
-		if home := os.Getenv("HOME"); home != "" {
-			v.AddConfigPath(filepath.Join(home, "."+appName))
-		}
+	if cfgDir, err := hostsharingConfigDir(); err != nil {
+		log.Printf("config-mate: PAC detection failed (%v); continuing with XDG fallback", err)
+	} else if cfgDir != "" {
+		v.AddConfigPath(cfgDir)
+	}
+	for _, p := range core.XdgConfigDirs(appName) {
+		v.AddConfigPath(p)
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		v.AddConfigPath(filepath.Join(home, "."+appName))
+	}
 
-		if err := v.ReadInConfig(); err != nil && !errors.As(err, &viper.ConfigFileNotFoundError{}) {
-			return fmt.Errorf("cannot read config: %w", err)
-		}
+	if err := v.ReadInConfig(); err != nil && !errors.As(err, &viper.ConfigFileNotFoundError{}) {
+		return fmt.Errorf("cannot read config: %w", err)
 	}
 
 	if len(fs) <= 0 {
@@ -78,4 +70,22 @@ func ReadInConfig(rawVal any, fs ...mapstructure.DecodeHookFunc) error {
 	}
 
 	return nil
+}
+
+// hostsharingConfigDir returns the PAC layout ConfigDir, or ("", nil) for
+// no match. ErrShortPath is treated as a non-match (expected for non-PAC
+// deployments). Test seam: DomainByExecutable's *domain is unexported, so
+// the seam exposes the ConfigDir string directly.
+var hostsharingConfigDir = func() (string, error) {
+	d, err := hostsharing.DomainByExecutable()
+	if err == hostsharing.ErrShortPath {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if d == nil {
+		return "", nil
+	}
+	return d.ConfigDir(), nil
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.0.1 - 2026-08-21
+
+- **Fixed**: `server.ReadInConfig` config-loader bugs:
+  - The `.conf` short-circuit in CWD silently overrode every other path; removed.
+  - XDG path did not join the app subdirectory (`<base>/<app>/<app>.yaml` was unreachable); now both `<base>/<app>` and `<base>` are searched, subdir first.
+  - A future non-`ErrShortPath` error from `hostsharing.DomainByExecutable` would have panicked the process at boot; now logged and the XDG fallback runs.
+  - Doc-comment clarified that the file basename must equal `<appName>` (not `config`, not `<appName>.conf`) and the supported extensions are listed.
+
 ## v2.0.0 - 2026-08-18
 
 - **Breaking Change**: package layout reorganised. The single `hostsharing` package has been split into three focused packages:
